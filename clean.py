@@ -97,13 +97,14 @@ def clean_sheet(sheet, start_row, total_writes=None):
                 prev_ts = parse_timestamp(data[row - 1][1])
                 for n in range(1, n_missing):
                     new_ts = prev_ts + timedelta(hours=avg_delta * n)
+                    insert_row_index = row + n
                     insert_row = [
                         '',
                         format_timestamp(new_ts),
-                        f'=IF(ISDATE(B{row+1}),ROUND((B{row+1}-B{row})*24,2),)',
+                        f'=IF(ISDATE(B{insert_row_index}),ROUND((B{insert_row_index}-B{insert_row_index - 1})*24,2),)',
                         CLEANED_MARK
                     ]
-                    sheet.insert_row(insert_row, row + n, value_input_option='USER_ENTERED')
+                    sheet.insert_row(insert_row, insert_row_index, value_input_option='USER_ENTERED')
                     time.sleep(1.2)
                     rows_added += 1
                     write_ops += 1
