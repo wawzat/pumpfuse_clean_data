@@ -72,6 +72,7 @@ def clean_sheet(sheet, start_row):
     data = sheet.get_all_values()
     row = start_row
     total_rows = len(data)
+    rows_added = 0
     with tqdm(total=total_rows - start_row, desc="Processing rows", unit="row") as pbar:
         while row < len(data):
             # Get previous DELTA_AVG_WINDOW delta values
@@ -106,6 +107,7 @@ def clean_sheet(sheet, start_row):
                     ]
                     sheet.insert_row(insert_row, row + n, value_input_option='USER_ENTERED')
                     time.sleep(1.2)  # Rate limit: 1 write per 1.2 seconds
+                    rows_added += 1
                 # Do NOT mark the current row as cleaned
                 # Update the delta formula in the current row to reference the last inserted row
                 updated_delta_formula = f'=IF(ISDATE(B{row + n_missing}),ROUND((B{row + n_missing}-B{row + n_missing - 1})*24,2),)'
@@ -118,12 +120,14 @@ def clean_sheet(sheet, start_row):
             else:
                 row += 1
                 pbar.update(1)
+    return rows_added
 
 
 def estimate_rows_to_insert(data, start_row):
     """Preprocess the data to estimate how many rows will be inserted during cleaning."""
     row = start_row
     rows_to_insert = 0
+    update_ops = 0
     while row < len(data):
         prev_deltas = []
         for i in range(row - DELTA_AVG_WINDOW, row):
@@ -142,20 +146,21 @@ def estimate_rows_to_insert(data, start_row):
         n_missing = round(curr_delta / avg_delta)
         if n_missing > 1 and abs(curr_delta - n_missing * avg_delta) < DELTA_TOLERANCE * avg_delta * n_missing:
             rows_to_insert += n_missing - 1
+            update_ops += 1  # for the delta formula update
             row += n_missing
         else:
             row += 1
-    return rows_to_insert
+    return rows_to_insert, update_ops
 
 
 def estimate_processing_time(sheet, start_row):
-    """Estimate the number of rows to process and total time required, using preprocessing for accuracy."""
+    """Estimate the number of write operations and total time required, using preprocessing for accuracy."""
     data = sheet.get_all_values()
-    total_rows = len(data) - start_row
-    rows_to_insert = estimate_rows_to_insert(data, start_row)
-    # Each write (insert or update) takes at least 1.2s
-    estimated_seconds = (total_rows + rows_to_insert) * 1.2
-    return total_rows, rows_to_insert, estimated_seconds
+    rows_to_insert, update_ops = estimate_rows_to_insert(data, start_row)
+    # Each insert and update takes at least 1.2s
+    total_writes = rows_to_insert + update_ops
+    estimated_seconds = total_writes * 1.2
+    return rows_to_insert, update_ops, estimated_seconds
 
 
 def main():
@@ -166,18 +171,18 @@ def main():
     start_row = int(sys.argv[1])
     config = read_config()
     sheet = get_gsheet(config['sheet_name'], config['credentials_json'])
-    total_rows, rows_to_insert, estimated_seconds = estimate_processing_time(sheet, start_row)
+    rows_to_insert, update_ops, estimated_seconds = estimate_processing_time(sheet, start_row)
     estimated_minutes = estimated_seconds / 60
-    print(f"Rows to process: {total_rows}")
     print(f"Estimated rows to insert: {rows_to_insert}")
+    print(f"Estimated delta formula updates: {update_ops}")
     print(f"Estimated time: {estimated_minutes:.1f} minutes ({estimated_seconds:.0f} seconds)")
     if estimated_seconds > 300:
         proceed = input("Warning: Estimated time exceeds 5 minutes. Continue? (y/n): ").strip().lower()
         if proceed != 'y':
             print('Aborted by user.')
             sys.exit(0)
-    clean_sheet(sheet, start_row)
-    print('Cleaning complete.')
+    rows_added = clean_sheet(sheet, start_row)
+    print(f'Cleaning complete. Rows added: {rows_added}')
 
 
 if __name__ == '__main__':
