@@ -107,6 +107,10 @@ def clean_sheet(sheet, start_row):
                     sheet.insert_row(insert_row, row + n, value_input_option='USER_ENTERED')
                     time.sleep(1.2)  # Rate limit: 1 write per 1.2 seconds
                 # Do NOT mark the current row as cleaned
+                # Update the delta formula in the current row to reference the last inserted row
+                updated_delta_formula = f'=IF(ISDATE(B{row + n_missing}),ROUND((B{row + n_missing}-B{row + n_missing - 1})*24,2),)'
+                sheet.update_cell(row + n_missing, 3, updated_delta_formula)
+                time.sleep(1.2)  # Rate limit: 1 write per 1.2 seconds
                 # Refresh data after insertion
                 data = sheet.get_all_values()
                 row += n_missing
