@@ -104,7 +104,7 @@ def clean_sheet(sheet, start_row):
                         f'=IF(ISDATE(B{row+1}),ROUND((B{row+1}-B{row})*24,2),)',
                         CLEANED_MARK
                     ]
-                    sheet.insert_row(insert_row, row + n)
+                    sheet.insert_row(insert_row, row + n, value_input_option='USER_ENTERED')
                     time.sleep(1.2)  # Rate limit: 1 write per 1.2 seconds
                 # Do NOT mark the current row as cleaned
                 # Refresh data after insertion
