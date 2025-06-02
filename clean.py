@@ -76,7 +76,7 @@ def clean_sheet(sheet, start_row, total_writes=None):
     write_ops = 0
     # If total_writes is provided, use it for the progress bar; else fall back to row count
     pbar_total = total_writes if total_writes is not None else (total_rows - start_row)
-    with tqdm(total=pbar_total, desc="Processing writes", unit="write") as pbar:
+    with tqdm(total=pbar_total, desc="Processing writes", unit=" writes") as pbar:
         while row < len(data):
             prev_deltas = []
             for i in range(row - DELTA_AVG_WINDOW, row):
