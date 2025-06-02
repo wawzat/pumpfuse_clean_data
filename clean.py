@@ -51,8 +51,9 @@ def parse_timestamp(ts_str):
 
 
 def format_timestamp(dt):
-    """Format datetime object to string for Google Sheets."""
-    return dt.strftime('%Y-%m-%d %H:%M:%S')
+    """Format datetime object to string for Google Sheets, with single digit hours unpadded."""
+    # Format as 'YYYY-MM-DD H:MM:SS' (no leading zero for hour)
+    return dt.strftime('%Y-%m-%d ') + str(dt.hour) + dt.strftime(':%M:%S')
 
 
 def get_float(val):
