@@ -18,6 +18,7 @@ import configparser
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
+import time
 
 CLEANED_MARK = 'cleaned'
 DELTA_AVG_WINDOW = 5
@@ -62,7 +63,7 @@ def get_float(val):
 
 
 def clean_sheet(sheet, start_row):
-    """Main cleaning logic for the Google Sheet."""
+    """Main cleaning logic for the Google Sheet with rate limiting."""
     data = sheet.get_all_values()
     row = start_row
     while row < len(data):
@@ -95,8 +96,10 @@ def clean_sheet(sheet, start_row):
                     CLEANED_MARK
                 ]
                 sheet.insert_row(insert_row, row + n)
+                time.sleep(1.2)  # Rate limit: 1 write per 1.2 seconds
             # Mark the current row as cleaned
             sheet.update_cell(row + n_missing, 4, CLEANED_MARK)
+            time.sleep(1.2)
             # Refresh data after insertion
             data = sheet.get_all_values()
             row += n_missing
@@ -104,6 +107,7 @@ def clean_sheet(sheet, start_row):
             # Mark as cleaned if not already
             if data[row][3].strip().lower() != CLEANED_MARK:
                 sheet.update_cell(row + 1, 4, CLEANED_MARK)
+                time.sleep(1.2)
             row += 1
 
 
