@@ -169,6 +169,8 @@ def main():
     start_row = int(sys.argv[1])
     config = read_config()
     sheet = get_gsheet(config['sheet_name'], config['credentials_json'])
+    rows_to_process = len(sheet.get_all_values()) - start_row
+    print(f"Rows to process: {rows_to_process}")
     rows_to_insert, update_ops, estimated_seconds = estimate_processing_time(sheet, start_row)
     estimated_minutes = estimated_seconds / 60
     total_writes = rows_to_insert + update_ops
