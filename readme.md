@@ -18,7 +18,7 @@ source .venv/bin/activate  # On Linux
 
 ### 2. Install Required Libraries
 ```
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ### 3. Google API Authentication
@@ -27,7 +27,7 @@ pip install -r requirements.txt
 - Enable the Google Sheets API and Google Drive API
 - Create OAuth2 credentials (Service Account or OAuth Client ID)
 - Download the credentials JSON file
-- Place the credentials file path and other required keys in `config.ini` (see below)
+- Place the credentials file path in `config.ini` (see below)
 
 ### 4. Configure `config.ini`
 Example `config.ini`:
@@ -44,7 +44,6 @@ python clean.py <start_row_number>
 - Replace `<start_row_number>` with the row number to start cleaning from (e.g., 2).
 
 ## Notes
-- The program will only modify a copy of your data (as specified in the sheet name).
 - Cleaned rows will be marked in column D with the word `cleaned`.
 - Make sure `config.ini` is in the same directory as `clean.py`.
 
