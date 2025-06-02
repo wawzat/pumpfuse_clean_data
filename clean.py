@@ -120,14 +120,42 @@ def clean_sheet(sheet, start_row):
                 pbar.update(1)
 
 
+def estimate_rows_to_insert(data, start_row):
+    """Preprocess the data to estimate how many rows will be inserted during cleaning."""
+    row = start_row
+    rows_to_insert = 0
+    while row < len(data):
+        prev_deltas = []
+        for i in range(row - DELTA_AVG_WINDOW, row):
+            if i > 1:
+                delta = get_float(data[i][2])
+                if delta is not None:
+                    prev_deltas.append(delta)
+        if len(prev_deltas) < DELTA_AVG_WINDOW:
+            row += 1
+            continue
+        avg_delta = sum(prev_deltas) / DELTA_AVG_WINDOW
+        curr_delta = get_float(data[row][2])
+        if curr_delta is None:
+            row += 1
+            continue
+        n_missing = round(curr_delta / avg_delta)
+        if n_missing > 1 and abs(curr_delta - n_missing * avg_delta) < DELTA_TOLERANCE * avg_delta * n_missing:
+            rows_to_insert += n_missing - 1
+            row += n_missing
+        else:
+            row += 1
+    return rows_to_insert
+
+
 def estimate_processing_time(sheet, start_row):
-    """Estimate the number of rows to process and total time required."""
+    """Estimate the number of rows to process and total time required, using preprocessing for accuracy."""
     data = sheet.get_all_values()
     total_rows = len(data) - start_row
-    # Each row may require at least one write (1.2s), but in worst case (insertion) more
-    # For estimation, assume 1.2s per row as a lower bound
-    estimated_seconds = total_rows * 1.2
-    return total_rows, estimated_seconds
+    rows_to_insert = estimate_rows_to_insert(data, start_row)
+    # Each write (insert or update) takes at least 1.2s
+    estimated_seconds = (total_rows + rows_to_insert) * 1.2
+    return total_rows, rows_to_insert, estimated_seconds
 
 
 def main():
@@ -138,9 +166,10 @@ def main():
     start_row = int(sys.argv[1])
     config = read_config()
     sheet = get_gsheet(config['sheet_name'], config['credentials_json'])
-    total_rows, estimated_seconds = estimate_processing_time(sheet, start_row)
+    total_rows, rows_to_insert, estimated_seconds = estimate_processing_time(sheet, start_row)
     estimated_minutes = estimated_seconds / 60
     print(f"Rows to process: {total_rows}")
+    print(f"Estimated rows to insert: {rows_to_insert}")
     print(f"Estimated time: {estimated_minutes:.1f} minutes ({estimated_seconds:.0f} seconds)")
     if estimated_seconds > 300:
         proceed = input("Warning: Estimated time exceeds 5 minutes. Continue? (y/n): ").strip().lower()
