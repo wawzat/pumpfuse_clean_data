@@ -35,6 +35,14 @@ def read_config():
         config = configparser.ConfigParser()
         config.read('config.ini')
         return config['google']
+    except KeyError as e:
+        logging.error(f"Missing section or key in config: {e}")
+        print('Configuration file is missing required section or key. See clean_errors.log for details.')
+        sys.exit(1)
+    except configparser.Error as e:
+        logging.error(f"ConfigParser error: {e}")
+        print('Failed to parse configuration file. See clean_errors.log for details.')
+        sys.exit(1)
     except Exception as e:
         logging.error(f"Error reading config: {e}")
         print('Failed to read configuration. See clean_errors.log for details.')
