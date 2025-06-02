@@ -67,35 +67,33 @@ def get_float(val):
         return None
 
 
-def clean_sheet(sheet, start_row):
+def clean_sheet(sheet, start_row, total_writes=None):
     """Main cleaning logic for the Google Sheet with rate limiting."""
     data = sheet.get_all_values()
     row = start_row
     total_rows = len(data)
     rows_added = 0
-    with tqdm(total=total_rows - start_row, desc="Processing rows", unit="row") as pbar:
+    write_ops = 0
+    # If total_writes is provided, use it for the progress bar; else fall back to row count
+    pbar_total = total_writes if total_writes is not None else (total_rows - start_row)
+    with tqdm(total=pbar_total, desc="Processing writes", unit="write") as pbar:
         while row < len(data):
-            # Get previous DELTA_AVG_WINDOW delta values
             prev_deltas = []
             for i in range(row - DELTA_AVG_WINDOW, row):
-                if i > 1:  # skip header and empty rows
+                if i > 1:
                     delta = get_float(data[i][2])
                     if delta is not None:
                         prev_deltas.append(delta)
             if len(prev_deltas) < DELTA_AVG_WINDOW:
                 row += 1
-                pbar.update(1)
                 continue
             avg_delta = sum(prev_deltas) / DELTA_AVG_WINDOW
             curr_delta = get_float(data[row][2])
             if curr_delta is None:
                 row += 1
-                pbar.update(1)
                 continue
-            # Check if current delta is approximately n * avg_delta
             n_missing = round(curr_delta / avg_delta)
             if n_missing > 1 and abs(curr_delta - n_missing * avg_delta) < DELTA_TOLERANCE * avg_delta * n_missing:
-                # Insert n_missing - 1 rows above current row, mark only inserted rows as cleaned
                 prev_ts = parse_timestamp(data[row - 1][1])
                 for n in range(1, n_missing):
                     new_ts = prev_ts + timedelta(hours=avg_delta * n)
@@ -106,20 +104,19 @@ def clean_sheet(sheet, start_row):
                         CLEANED_MARK
                     ]
                     sheet.insert_row(insert_row, row + n, value_input_option='USER_ENTERED')
-                    time.sleep(1.2)  # Rate limit: 1 write per 1.2 seconds
+                    time.sleep(1.2)
                     rows_added += 1
-                # Do NOT mark the current row as cleaned
-                # Update the delta formula in the current row to reference the last inserted row
+                    write_ops += 1
+                    pbar.update(1)
                 updated_delta_formula = f'=IF(ISDATE(B{row + n_missing}),ROUND((B{row + n_missing}-B{row + n_missing - 1})*24,2),)'
                 sheet.update_cell(row + n_missing, 3, updated_delta_formula)
-                time.sleep(1.2)  # Rate limit: 1 write per 1.2 seconds
-                # Refresh data after insertion
+                time.sleep(1.2)
+                write_ops += 1
+                pbar.update(1)
                 data = sheet.get_all_values()
                 row += n_missing
-                pbar.update(n_missing)
             else:
                 row += 1
-                pbar.update(1)
     return rows_added
 
 
@@ -173,6 +170,7 @@ def main():
     sheet = get_gsheet(config['sheet_name'], config['credentials_json'])
     rows_to_insert, update_ops, estimated_seconds = estimate_processing_time(sheet, start_row)
     estimated_minutes = estimated_seconds / 60
+    total_writes = rows_to_insert + update_ops
     print(f"Estimated rows to insert: {rows_to_insert}")
     print(f"Estimated delta formula updates: {update_ops}")
     print(f"Estimated time: {estimated_minutes:.1f} minutes ({estimated_seconds:.0f} seconds)")
@@ -181,7 +179,7 @@ def main():
         if proceed != 'y':
             print('Aborted by user.')
             sys.exit(0)
-    rows_added = clean_sheet(sheet, start_row)
+    rows_added = clean_sheet(sheet, start_row, total_writes=total_writes)
     print(f'Cleaning complete. Rows added: {rows_added}')
 
 
