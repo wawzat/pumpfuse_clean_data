@@ -51,9 +51,12 @@ def parse_timestamp(ts_str):
 
 
 def format_timestamp(dt):
-    """Format datetime object to string for Google Sheets, with single digit hours unpadded."""
+    """Format datetime object to string for Google Sheets, with single digit hours unpadded, and force Sheets datetime format."""
     # Format as 'YYYY-MM-DD H:MM:SS' (no leading zero for hour)
-    return dt.strftime('%Y-%m-%d ') + str(dt.hour) + dt.strftime(':%M:%S')
+    # Prefix with single quote to force Google Sheets to treat as datetime
+    # But single quote makes it text, so instead, return as formula: =TEXT(...)
+    # However, best is to return as: =DATE(YYYY,MM,DD)+TIME(H,MM,SS)
+    return f"=DATE({dt.year},{dt.month},{dt.day})+TIME({dt.hour},{dt.minute},{dt.second})"
 
 
 def get_float(val):
