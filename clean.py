@@ -49,7 +49,7 @@ def read_config() -> Dict[str, Any]:
         print('Failed to read configuration. See clean_errors.log for details.')
         sys.exit(1)
 
-def get_gsheet(sheet_name: str, credentials_json: str) -> gspread.models.Worksheet:
+def get_gsheet(sheet_name: str, credentials_json: str) -> gspread.Worksheet:
     """Connect to Google Sheets and return the worksheet object."""
     try:
         scope = [
@@ -80,7 +80,7 @@ def get_float(val: Any) -> float | None:
     except (TypeError, ValueError):
         return None
 
-def clean_sheet(sheet: gspread.models.Worksheet, start_row: int, total_writes: int | None = None) -> int:
+def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | None = None) -> int:
     """Clean the Google Sheet by interpolating missing rows and updating delta formulas."""
     try:
         data = sheet.get_all_values()
@@ -175,7 +175,7 @@ def estimate_rows_to_insert(data: list[list[Any]], start_row: int) -> Tuple[int,
             row += 1
     return rows_to_insert, update_ops
 
-def estimate_processing_time(sheet: gspread.models.Worksheet, start_row: int) -> Tuple[int, int, float]:
+def estimate_processing_time(sheet: gspread.Worksheet, start_row: int) -> Tuple[int, int, float]:
     """Estimate the number of write operations and total time required, using preprocessing for accuracy."""
     data = sheet.get_all_values()
     rows_to_insert, update_ops = estimate_rows_to_insert(data, start_row)
