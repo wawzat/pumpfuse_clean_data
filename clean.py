@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 import time
 from tqdm import tqdm
 import logging
+from typing import Any, Dict, Tuple
 
 CLEANED_MARK = 'cleaned'
 DELTA_AVG_WINDOW = 5
@@ -29,8 +30,8 @@ DELTA_TOLERANCE = 0.2  # 20% tolerance for delta comparison
 logging.basicConfig(filename='clean_errors.log', level=logging.ERROR, 
                     format='%(asctime)s %(levelname)s: %(message)s')
 
-
-def read_config():
+def read_config() -> Dict[str, Any]:
+    """Read Google Sheets configuration from config.ini."""
     try:
         config = configparser.ConfigParser()
         config.read('config.ini')
@@ -48,8 +49,8 @@ def read_config():
         print('Failed to read configuration. See clean_errors.log for details.')
         sys.exit(1)
 
-
-def get_gsheet(sheet_name, credentials_json):
+def get_gsheet(sheet_name: str, credentials_json: str) -> gspread.models.Worksheet:
+    """Connect to Google Sheets and return the worksheet object."""
     try:
         scope = [
             'https://spreadsheets.google.com/feeds',
@@ -64,35 +65,29 @@ def get_gsheet(sheet_name, credentials_json):
         print('Failed to connect to Google Sheet. See clean_errors.log for details.')
         sys.exit(1)
 
-
-def parse_timestamp(ts_str):
+def parse_timestamp(ts_str: str) -> datetime:
     """Parse timestamp string to datetime object."""
     return datetime.strptime(ts_str, '%Y-%m-%d %H:%M:%S')
 
-
-def format_timestamp(dt):
+def format_timestamp(dt: datetime) -> str:
     """Format datetime object to string for Google Sheets, with single digit hours unpadded, and force Sheets datetime format."""
-    # Format as 'YYYY-MM-DD H:MM:SS' (no leading zero for hour)
-    # However, best is to return as: =DATE(YYYY,MM,DD)+TIME(H,MM,SS)
     return f"=DATE({dt.year},{dt.month},{dt.day})+TIME({dt.hour},{dt.minute},{dt.second})"
 
-
-def get_float(val):
+def get_float(val: Any) -> float | None:
     """Convert value to float if possible, else None."""
     try:
         return float(val)
     except (TypeError, ValueError):
         return None
 
-
-def clean_sheet(sheet, start_row, total_writes=None):
+def clean_sheet(sheet: gspread.models.Worksheet, start_row: int, total_writes: int | None = None) -> int:
+    """Clean the Google Sheet by interpolating missing rows and updating delta formulas."""
     try:
         data = sheet.get_all_values()
         row = start_row
         total_rows = len(data)
         rows_added = 0
         write_ops = 0
-        # If total_writes is provided, use it for the progress bar; else fall back to row count
         pbar_total = total_writes if total_writes is not None else (total_rows - start_row)
         with tqdm(total=pbar_total, desc="Processing writes", unit=" writes") as pbar:
             while row < len(data):
@@ -151,8 +146,7 @@ def clean_sheet(sheet, start_row, total_writes=None):
         print('An error occurred during cleaning. See clean_errors.log for details.')
         return 0
 
-
-def estimate_rows_to_insert(data, start_row):
+def estimate_rows_to_insert(data: list[list[Any]], start_row: int) -> Tuple[int, int]:
     """Preprocess the data to estimate how many rows will be inserted during cleaning."""
     row = start_row
     rows_to_insert = 0
@@ -181,23 +175,31 @@ def estimate_rows_to_insert(data, start_row):
             row += 1
     return rows_to_insert, update_ops
 
-
-def estimate_processing_time(sheet, start_row):
+def estimate_processing_time(sheet: gspread.models.Worksheet, start_row: int) -> Tuple[int, int, float]:
     """Estimate the number of write operations and total time required, using preprocessing for accuracy."""
     data = sheet.get_all_values()
     rows_to_insert, update_ops = estimate_rows_to_insert(data, start_row)
-    # Each insert and update takes at least 1.2s
     total_writes = rows_to_insert + update_ops
     estimated_seconds = total_writes * 1.2
     return rows_to_insert, update_ops, estimated_seconds
 
-
-def main():
+def main() -> None:
+    """Main entry point for the cleaning script."""
     try:
+        import signal
+        def handle_sigint(sig, frame):
+            print('\nInterrupted by user. Exiting gracefully...')
+            sys.exit(0)
+        signal.signal(signal.SIGINT, handle_sigint)
+
         if len(sys.argv) != 2:
             print('Usage: python clean.py <start_row_number>')
             sys.exit(1)
-        start_row = int(sys.argv[1])
+        try:
+            start_row = int(sys.argv[1])
+        except ValueError:
+            print('Start row number must be an integer.')
+            sys.exit(1)
         config = read_config()
         sheet = get_gsheet(config['sheet_name'], config['credentials_json'])
         rows_to_process = len(sheet.get_all_values()) - start_row
@@ -218,7 +220,6 @@ def main():
     except Exception as e:
         logging.error(f"Fatal error in main: {e}")
         print('A fatal error occurred. See clean_errors.log for details.')
-
 
 if __name__ == '__main__':
     main()
