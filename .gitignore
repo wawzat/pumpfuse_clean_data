@@ -1,2 +1,2 @@
-# Add config.ini to .gitignore
 config.ini
+clean_errors.log
