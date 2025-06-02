@@ -90,7 +90,7 @@ def clean_sheet(sheet, start_row):
             # Check if current delta is approximately n * avg_delta
             n_missing = round(curr_delta / avg_delta)
             if n_missing > 1 and abs(curr_delta - n_missing * avg_delta) < DELTA_TOLERANCE * avg_delta * n_missing:
-                # Insert n_missing - 1 rows above current row
+                # Insert n_missing - 1 rows above current row, mark only inserted rows as cleaned
                 prev_ts = parse_timestamp(data[row - 1][1])
                 for n in range(1, n_missing):
                     new_ts = prev_ts + timedelta(hours=avg_delta * n)
@@ -102,18 +102,12 @@ def clean_sheet(sheet, start_row):
                     ]
                     sheet.insert_row(insert_row, row + n)
                     time.sleep(1.2)  # Rate limit: 1 write per 1.2 seconds
-                # Mark the current row as cleaned
-                sheet.update_cell(row + n_missing, 4, CLEANED_MARK)
-                time.sleep(1.2)
+                # Do NOT mark the current row as cleaned
                 # Refresh data after insertion
                 data = sheet.get_all_values()
                 row += n_missing
                 pbar.update(n_missing)
             else:
-                # Mark as cleaned if not already
-                if data[row][3].strip().lower() != CLEANED_MARK:
-                    sheet.update_cell(row + 1, 4, CLEANED_MARK)
-                    time.sleep(1.2)
                 row += 1
                 pbar.update(1)
 
