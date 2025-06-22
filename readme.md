@@ -34,18 +34,38 @@ Example `config.ini`:
 ```
 [google]
 credentials_json = path/to/your/credentials.json
-sheet_name = sump_pump_run_times_copy
+sheet_name = sump_pump_run_times
 ```
 
-### 5. Run the Program
+### 5. Get and Prepare the Data
+- Check sump_pump_run_times for the last date entered
+- Go to the Looker Studio View
+- Change the start date to the day of the last date entered
+- Right click on the data and choose Export/Google Sheets
+- Open the saved sheet
+- Insert a column to the right of Column A (Time)
+- Open the previously saved sheet (will be named PumpFuse ####XXYY..._Untitled_Page_Table)
+- Select cell B2 then copy the formula from the forumla bar
+- Go to the newly saved sheet
+- Select B2 and paste the forumala into the formula bar
+- Press enter and accept the suggested auto fill
+- Select column B from the time after the last timestamp in sump_pump_run_times to the end.
+- Note the number Count in th elower left corner
+- Paste at least that many rows after last row of data in sump_pump_run_times
+- Copy the data that you previously selected in the newly saved sheet
+- Paste the data into sump_pump_run_times
+- Copy the delta formula in sump_pump_run_times
+- Delete the old PumpFuse ####XXYY..._Untitled_Page_Table sheet
+
+### 6. Activate the Virtual Environment and Run the Program
 ```
+.\.venv\Scripts\activate
 python clean.py <start_row_number>
 ```
 - Replace `<start_row_number>` with the row number to start cleaning from (e.g., 2).
 
 ## Notes
 - Cleaned rows will be marked in column D with the word `cleaned`.
-- Make sure `config.ini` is in the same directory as `clean.py`.
 
 ## License
 MIT
