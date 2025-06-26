@@ -191,7 +191,7 @@ def append_timestamps_and_extend_formula(
 ) -> None:
     """
     Append time data from input_ws (input_time_col) to target_ws (target_timestamp_col) after the last timestamp entry.
-    Extend the Delta formula for all added rows.
+    Extend the Delta formula for all added rows. Uses batch update to minimize API calls.
     """
     try:
         # Get input times
@@ -215,21 +215,28 @@ def append_timestamps_and_extend_formula(
         # Insert new rows after last timestamp row, with correct number of columns
         empty_row = [''] * num_cols
         target_ws.insert_rows([empty_row for _ in range(num_to_add)], row=last_row_idx + 1)
-        # Write times to new rows in the target Timestamp column
-        timestamp_col_idx = expected_headers.index(target_timestamp_col) + 1 if expected_headers else list(target_records[0].keys()).index(target_timestamp_col) + 1
-        for i, ts in enumerate(times):
-            cell = target_ws.cell(last_row_idx + 1 + i, timestamp_col_idx)
-            cell.value = ts
-            target_ws.update_cell(cell.row, cell.col, cell.value)
-        # Extend Delta formula
-        delta_col_idx = expected_headers.index('Delta') + 1 if expected_headers else list(target_records[0].keys()).index('Delta') + 1
-        last_formula_cell = target_ws.cell(last_row_idx, delta_col_idx)
+        # Prepare batch update for timestamps and formulas
+        timestamp_col_idx = expected_headers.index(target_timestamp_col) if expected_headers else list(target_records[0].keys()).index(target_timestamp_col)
+        delta_col_idx = expected_headers.index('Delta') if expected_headers else list(target_records[0].keys()).index('Delta')
+        # Get the formula from the last row with a Delta formula
+        last_formula_cell = target_ws.cell(last_row_idx, delta_col_idx + 1)
         formula = last_formula_cell.input_value if last_formula_cell.input_value and last_formula_cell.input_value.startswith('=') else None
-        if formula:
-            for i in range(num_to_add):
+        # Build new rows data
+        new_rows = []
+        for i, ts in enumerate(times):
+            row = [''] * num_cols
+            row[timestamp_col_idx] = ts
+            if formula:
+                # Adjust formula row numbers for each new row
                 new_formula = formula.replace(str(last_row_idx), str(last_row_idx + 1 + i))
-                target_ws.update_cell(last_row_idx + 1 + i, delta_col_idx, new_formula)
-        logging.info(f"Appended {num_to_add} times from input sheet and extended Delta formula.")
+                row[delta_col_idx] = new_formula
+            new_rows.append(row)
+        # Batch update all new rows
+        start_row = last_row_idx + 1
+        end_row = start_row + num_to_add - 1
+        cell_range = f'A{start_row}:"{chr(65+num_cols-1)}{end_row}"'
+        target_ws.update(f'A{start_row}:{chr(65+num_cols-1)}{end_row}', new_rows)
+        logging.info(f"Appended {num_to_add} times from input sheet and extended Delta formula (batch update).")
     except Exception as e:
         logging.error(f"Failed to append times and extend formula: {e}")
         raise
