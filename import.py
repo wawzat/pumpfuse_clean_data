@@ -227,9 +227,8 @@ def append_timestamps_and_extend_formula(
             row = [''] * num_cols
             row[timestamp_col_idx] = ts
             if formula:
-                # Adjust formula row numbers for each new row
-                new_formula = formula.replace(str(last_row_idx), str(last_row_idx + 1 + i))
-                row[delta_col_idx] = new_formula
+                # Copy the formula as-is for each new row (let Google Sheets auto-adjust relative references)
+                row[delta_col_idx] = formula
             new_rows.append(row)
         # Batch update all new rows
         start_row = last_row_idx + 1
