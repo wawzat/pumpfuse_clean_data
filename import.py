@@ -219,23 +219,27 @@ def append_timestamps_and_extend_formula(
         target_ws.insert_rows([empty_row for _ in range(num_to_add)], row=last_row_idx + 1)
         # Prepare batch update for timestamps and formulas
         timestamp_col_idx = expected_headers.index(target_timestamp_col) if expected_headers else list(target_records[0].keys()).index(target_timestamp_col)
-        delta_col_idx = expected_headers.index('Delta') if expected_headers else list(target_records[0].keys()).index('Delta')
-        # Get the formula from the last row with a Delta formula
+        delta_col_idx = expected_headers.index('Delta') if expected_headers else list(target_records[0].keys()).index('Delta')        # Get the formula from the last row with a Delta formula
         last_formula_cell = target_ws.cell(last_row_idx, delta_col_idx + 1)
         formula = last_formula_cell.value if last_formula_cell.value and str(last_formula_cell.value).startswith('=') else None
+        logging.info(f"Original formula from row {last_row_idx}: {formula}")
         # Build new rows data
         new_rows = []
         for i, ts in enumerate(times):
             row = [''] * num_cols
             row[timestamp_col_idx] = ts
             if formula:
-                # Increment all row numbers in the formula for each new row
-                def increment_formula_rows(match):
-                    row_num = int(match.group(1))
-                    # Offset from the last row
-                    return str(row_num + i + 1)
-                # Replace all occurrences of row numbers in the formula
-                new_formula = re.sub(r'(\d+)', increment_formula_rows, formula)
+                # Increment row numbers in cell references (e.g., B10, C5) for each new row
+                new_row_num = last_row_idx + 1 + i
+                def increment_cell_references(match):
+                    col_letter = match.group(1)
+                    row_num = int(match.group(2))
+                    # Increment the row number by the offset
+                    new_row = row_num + 1 + i
+                    return f"{col_letter}{new_row}"
+                # Replace cell references like B10, C5, etc.
+                new_formula = re.sub(r'([A-Z]+)(\d+)', increment_cell_references, formula)
+                logging.info(f"New formula for row {new_row_num}: {new_formula}")
                 row[delta_col_idx] = new_formula
             new_rows.append(row)
         # Batch update all new rows with correct argument order
