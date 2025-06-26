@@ -21,6 +21,7 @@ import pytz
 import gspread
 from gspread.worksheet import Worksheet
 from oauth2client.service_account import ServiceAccountCredentials
+import re
 
 # Set up logging
 logging.basicConfig(
@@ -192,6 +193,7 @@ def append_timestamps_and_extend_formula(
     """
     Append time data from input_ws (input_time_col) to target_ws (target_timestamp_col) after the last timestamp entry.
     Extend the Delta formula for all added rows. Uses batch update to minimize API calls.
+    Dynamically increments row numbers in the formula for each new row.
     """
     try:
         # Get input times
@@ -227,7 +229,14 @@ def append_timestamps_and_extend_formula(
             row = [''] * num_cols
             row[timestamp_col_idx] = ts
             if formula:
-                row[delta_col_idx] = formula
+                # Increment all row numbers in the formula for each new row
+                def increment_formula_rows(match):
+                    row_num = int(match.group(1))
+                    # Offset from the last row
+                    return str(row_num + i + 1)
+                # Replace all occurrences of row numbers in the formula
+                new_formula = re.sub(r'(\d+)', increment_formula_rows, formula)
+                row[delta_col_idx] = new_formula
             new_rows.append(row)
         # Batch update all new rows with correct argument order
         start_row = last_row_idx + 1
