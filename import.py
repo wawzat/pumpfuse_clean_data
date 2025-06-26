@@ -227,13 +227,13 @@ def append_timestamps_and_extend_formula(
             row = [''] * num_cols
             row[timestamp_col_idx] = ts
             if formula:
-                # Copy the formula as-is for each new row (let Google Sheets auto-adjust relative references)
                 row[delta_col_idx] = formula
             new_rows.append(row)
-        # Batch update all new rows
+        # Batch update all new rows with correct argument order
         start_row = last_row_idx + 1
         end_row = start_row + num_to_add - 1
-        target_ws.update(f'A{start_row}:{chr(65+num_cols-1)}{end_row}', new_rows)
+        range_name = f'A{start_row}:{chr(65+num_cols-1)}{end_row}'
+        target_ws.update(range_name=range_name, values=new_rows)
         logging.info(f"Appended {num_to_add} times from input sheet and extended Delta formula (batch update).")
     except Exception as e:
         logging.error(f"Failed to append times and extend formula: {e}")
