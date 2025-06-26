@@ -220,7 +220,7 @@ def append_timestamps_and_extend_formula(
         delta_col_idx = expected_headers.index('Delta') if expected_headers else list(target_records[0].keys()).index('Delta')
         # Get the formula from the last row with a Delta formula
         last_formula_cell = target_ws.cell(last_row_idx, delta_col_idx + 1)
-        formula = last_formula_cell.input_value if last_formula_cell.input_value and last_formula_cell.input_value.startswith('=') else None
+        formula = last_formula_cell.value if last_formula_cell.value and str(last_formula_cell.value).startswith('=') else None
         # Build new rows data
         new_rows = []
         for i, ts in enumerate(times):
@@ -234,7 +234,6 @@ def append_timestamps_and_extend_formula(
         # Batch update all new rows
         start_row = last_row_idx + 1
         end_row = start_row + num_to_add - 1
-        cell_range = f'A{start_row}:"{chr(65+num_cols-1)}{end_row}"'
         target_ws.update(f'A{start_row}:{chr(65+num_cols-1)}{end_row}', new_rows)
         logging.info(f"Appended {num_to_add} times from input sheet and extended Delta formula (batch update).")
     except Exception as e:
