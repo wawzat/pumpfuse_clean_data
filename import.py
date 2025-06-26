@@ -204,14 +204,17 @@ def append_timestamps_and_extend_formula(
         # Get target records and find last row with a timestamp
         if expected_headers:
             target_records = target_ws.get_all_records(expected_headers=expected_headers)
+            num_cols = len(expected_headers)
         else:
             target_records = target_ws.get_all_records()
+            num_cols = len(target_records[0].keys()) if target_records else 3
         last_row_idx = 1  # 1-based, header is row 1
         for i, row in enumerate(target_records, start=2):
             if row.get(target_timestamp_col):
                 last_row_idx = i
-        # Insert new rows after last timestamp row
-        target_ws.insert_rows([''] * num_to_add, row=last_row_idx + 1)
+        # Insert new rows after last timestamp row, with correct number of columns
+        empty_row = [''] * num_cols
+        target_ws.insert_rows([empty_row for _ in range(num_to_add)], row=last_row_idx + 1)
         # Write times to new rows in the target Timestamp column
         timestamp_col_idx = expected_headers.index(target_timestamp_col) + 1 if expected_headers else list(target_records[0].keys()).index(target_timestamp_col) + 1
         for i, ts in enumerate(times):
