@@ -185,20 +185,21 @@ def delete_rows_up_to_datetime(input_ws: Worksheet, time_col: str, most_recent: 
 def append_timestamps_and_extend_formula(
     input_ws: Worksheet,
     target_ws: Worksheet,
-    timestamp_col: str = 'Timestamp',
+    input_time_col: str = 'Time',
+    target_timestamp_col: str = 'Timestamp',
     expected_headers: Optional[List[str]] = None
 ) -> None:
     """
-    Append timestamp data from input_ws to target_ws after the last timestamp entry.
+    Append time data from input_ws (input_time_col) to target_ws (target_timestamp_col) after the last timestamp entry.
     Extend the Delta formula for all added rows.
     """
     try:
-        # Get input timestamps
+        # Get input times
         input_records = input_ws.get_all_records()
-        timestamps = [r[timestamp_col] for r in input_records if r.get(timestamp_col)]
-        num_to_add = len(timestamps)
+        times = [r[input_time_col] for r in input_records if r.get(input_time_col)]
+        num_to_add = len(times)
         if num_to_add == 0:
-            logging.info("No timestamps to append from input sheet.")
+            logging.info("No times to append from input sheet.")
             return
         # Get target records and find last row with a timestamp
         if expected_headers:
@@ -207,29 +208,27 @@ def append_timestamps_and_extend_formula(
             target_records = target_ws.get_all_records()
         last_row_idx = 1  # 1-based, header is row 1
         for i, row in enumerate(target_records, start=2):
-            if row.get(timestamp_col):
+            if row.get(target_timestamp_col):
                 last_row_idx = i
         # Insert new rows after last timestamp row
         target_ws.insert_rows([''] * num_to_add, row=last_row_idx + 1)
-        # Write timestamps to new rows
-        timestamp_col_idx = expected_headers.index(timestamp_col) + 1 if expected_headers else list(target_records[0].keys()).index(timestamp_col) + 1
-        for i, ts in enumerate(timestamps):
+        # Write times to new rows in the target Timestamp column
+        timestamp_col_idx = expected_headers.index(target_timestamp_col) + 1 if expected_headers else list(target_records[0].keys()).index(target_timestamp_col) + 1
+        for i, ts in enumerate(times):
             cell = target_ws.cell(last_row_idx + 1 + i, timestamp_col_idx)
             cell.value = ts
             target_ws.update_cell(cell.row, cell.col, cell.value)
         # Extend Delta formula
         delta_col_idx = expected_headers.index('Delta') + 1 if expected_headers else list(target_records[0].keys()).index('Delta') + 1
-        # Get the formula from the last row with a Delta formula
         last_formula_cell = target_ws.cell(last_row_idx, delta_col_idx)
         formula = last_formula_cell.input_value if last_formula_cell.input_value and last_formula_cell.input_value.startswith('=') else None
         if formula:
             for i in range(num_to_add):
-                # Adjust formula row numbers for each new row
                 new_formula = formula.replace(str(last_row_idx), str(last_row_idx + 1 + i))
                 target_ws.update_cell(last_row_idx + 1 + i, delta_col_idx, new_formula)
-        logging.info(f"Appended {num_to_add} timestamps and extended Delta formula.")
+        logging.info(f"Appended {num_to_add} times from input sheet and extended Delta formula.")
     except Exception as e:
-        logging.error(f"Failed to append timestamps and extend formula: {e}")
+        logging.error(f"Failed to append times and extend formula: {e}")
         raise
 
 
@@ -289,11 +288,12 @@ def main() -> None:
         # Delete rows up to and including most recent datetime in input sheet
         delete_rows_up_to_datetime(input_ws, time_col, most_recent)
 
-        # Append timestamps and extend Delta formula in target sheet
+        # Append times and extend Delta formula in target sheet
         append_timestamps_and_extend_formula(
             input_ws,
             target_ws,
-            timestamp_col='Timestamp',
+            input_time_col=time_col,  # usually 'Time'
+            target_timestamp_col='Timestamp',
             expected_headers=['', 'Timestamp', 'Delta']
         )
     except KeyboardInterrupt:
