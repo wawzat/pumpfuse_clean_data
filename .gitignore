@@ -1,2 +1,3 @@
 config.ini
 clean_errors.log
+.clean_errors.log.swp
