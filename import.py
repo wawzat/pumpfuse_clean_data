@@ -203,50 +203,88 @@ def append_timestamps_and_extend_formula(
         if num_to_add == 0:
             logging.info("No times to append from input sheet.")
             return
+
         # Get target records and find last row with a timestamp
         if expected_headers:
+            headers = expected_headers
             target_records = target_ws.get_all_records(expected_headers=expected_headers)
             num_cols = len(expected_headers)
         else:
+            headers = target_ws.row_values(1)
+            if not headers:
+                logging.warning("Target sheet has no headers, cannot proceed.")
+                return
             target_records = target_ws.get_all_records()
-            num_cols = len(target_records[0].keys()) if target_records else 3
+            num_cols = len(headers)
+
         last_row_idx = 1  # 1-based, header is row 1
         for i, row in enumerate(target_records, start=2):
             if row.get(target_timestamp_col):
                 last_row_idx = i
+        
         # Insert new rows after last timestamp row, with correct number of columns
         empty_row = [''] * num_cols
-        target_ws.insert_rows([empty_row for _ in range(num_to_add)], row=last_row_idx + 1)
+        if num_to_add > 0:
+            target_ws.insert_rows([empty_row for _ in range(num_to_add)], row=last_row_idx + 1)
+        
         # Prepare batch update for timestamps and formulas
-        timestamp_col_idx = expected_headers.index(target_timestamp_col) if expected_headers else list(target_records[0].keys()).index(target_timestamp_col)
-        delta_col_idx = expected_headers.index('Delta') if expected_headers else list(target_records[0].keys()).index('Delta')        # Get the formula from the last row with a Delta formula
-        last_formula_cell = target_ws.cell(last_row_idx, delta_col_idx + 1)
-        formula = last_formula_cell.value if last_formula_cell.value and str(last_formula_cell.value).startswith('=') else None
-        logging.info(f"Original formula from row {last_row_idx}: {formula}")
+        timestamp_col_idx = headers.index(target_timestamp_col)
+        delta_col_idx = headers.index('Delta')
+        
+        # Get the formula from the last row with a Delta formula by searching backwards
+        formula = None
+        formula_base_row = 0
+        for i in range(last_row_idx, 1, -1):
+            try:
+                cell = target_ws.cell(i, delta_col_idx + 1, value_render_option='FORMULA')
+                if cell.value and str(cell.value).startswith('='):
+                    formula = cell.value
+                    formula_base_row = i
+                    break
+            except Exception as e:
+                logging.debug(f"Could not fetch cell ({i}, {delta_col_idx + 1}): {e}")
+                continue # Ignore errors for cells that can't be fetched
+        
+        logging.info(f"Using formula from row {formula_base_row}: {formula}")
+
         # Build new rows data
         new_rows = []
-        for i, ts in enumerate(times):
-            row = [''] * num_cols
-            row[timestamp_col_idx] = ts
-            if formula:
-                # Increment row numbers in cell references (e.g., B10, C5) for each new row
+        if formula:
+            def get_new_formula(original_formula, base_row, current_row):
+                offset = current_row - base_row
+                def increment_row_references(match):
+                    col = match.group(1)
+                    row = int(match.group(2))
+                    return f"{col}{row + offset}"
+                return re.sub(r'([A-Z]+)(\d+)', increment_row_references, original_formula)
+
+            for i, ts in enumerate(times):
+                row = [''] * num_cols
+                row[timestamp_col_idx] = ts
                 new_row_num = last_row_idx + 1 + i
-                def increment_cell_references(match):
-                    col_letter = match.group(1)
-                    row_num = int(match.group(2))
-                    # Increment the row number by the offset
-                    new_row = row_num + 1 + i
-                    return f"{col_letter}{new_row}"
-                # Replace cell references like B10, C5, etc.
-                new_formula = re.sub(r'([A-Z]+)(\d+)', increment_cell_references, formula)
-                logging.info(f"New formula for row {new_row_num}: {new_formula}")
+                new_formula = get_new_formula(formula, formula_base_row, new_row_num)
                 row[delta_col_idx] = new_formula
-            new_rows.append(row)
+                new_rows.append(row)
+        else:
+            logging.warning("No formula found to extend.")
+            for ts in times:
+                row = [''] * num_cols
+                row[timestamp_col_idx] = ts
+                new_rows.append(row)
+
         # Batch update all new rows with correct argument order
-        start_row = last_row_idx + 1
-        end_row = start_row + num_to_add - 1
-        range_name = f'A{start_row}:{chr(65+num_cols-1)}{end_row}'
-        target_ws.update(range_name=range_name, values=new_rows)
+        if new_rows:
+            start_row = last_row_idx + 1
+            end_row = start_row + num_to_add - 1
+            
+            end_col_char = ''
+            n = num_cols
+            while n > 0:
+                n, remainder = divmod(n - 1, 26)
+                end_col_char = chr(65 + remainder) + end_col_char
+            
+            range_name = f'A{start_row}:{end_col_char}{end_row}'
+            target_ws.update(range_name=range_name, values=new_rows, value_input_option='USER_ENTERED')
         logging.info(f"Appended {num_to_add} times from input sheet and extended Delta formula (batch update).")
     except Exception as e:
         logging.error(f"Failed to append times and extend formula: {e}")
