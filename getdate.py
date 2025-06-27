@@ -1,7 +1,7 @@
 """
 getdate.py
 
-This script retrieves the most recent date from the Google Sheet specified in the config.ini file (under the variable 'sheet_name') and prints it to the console.
+This script retrieves the most recent date from the Google Sheet specified in the config.ini file (under the variable 'target_sheet_name') and prints it to the console.
 
 Usage:
     python getdate.py
@@ -107,24 +107,24 @@ def main() -> None:
     Main function to retrieve and print the most recent date from the configured Google Sheet.
     """
     parser = argparse.ArgumentParser(
-        description="Get the most recent date from the Google Sheet specified in config.ini (sheet_name)."
+        description="Get the most recent date from the Google Sheet specified in config.ini (target_sheet_name)."
     )
     args = parser.parse_args()
     try:
         config = load_config()
         credentials_path = config['google']['credentials_json']
-        sheet_name = config['google']['sheet_name']
+        target_sheet_name = config['google']['target_sheet_name']
         # Open the spreadsheet and Data worksheet
         client = get_gspread_client(credentials_path)
-        sh = client.open(sheet_name)
+        sh = client.open(target_sheet_name)
         ws = sh.worksheet('Data')
         # Use explicit headers for blank column A
         expected_headers = ['', 'Timestamp', 'Delta']
         most_recent = get_most_recent_timestamp(ws, timestamp_col='Timestamp', expected_headers=expected_headers)
         if most_recent:
-            print(f"Latest date in {sheet_name} is: {most_recent}")
+            print(f"Latest date in {target_sheet_name} is: {most_recent}")
         else:
-            print(f"No valid dates found in {sheet_name}.")
+            print(f"No valid dates found in {target_sheet_name}.")
     except KeyboardInterrupt:
         logging.info("Process interrupted by user.")
     except Exception as e:
