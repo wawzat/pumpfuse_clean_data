@@ -1,4 +1,4 @@
-# Pumpfuse Clean Data
+# Pumpfuse Import and Clean Data
 
 This program cleans and interpolates missing timestamp data in a Google Sheet exported from the Pumpfuse logger.
 
@@ -34,10 +34,24 @@ Example `config.ini`:
 ```
 [google]
 credentials_json = path/to/your/credentials.json
-sheet_name = sump_pump_run_times
+target_sheet_name = sump_pump_run_times
+input_sheet_name = PumpFuse_new
 ```
 
 ### 5. Get and Prepare the Data
+- Run Python .\getdate.py to get the latest date from the target spreadsheet
+- Go to the Looker Studio View
+- Change the start date to the day of the last date entered
+- Right click on the data and choose Export/Google Sheets
+- Open the saved sheet
+- Change the name to PumpFuse_new
+- Share the sheet with python-sheets@jsl-python-sheets.iam.gserviceaccount.com
+- Run .\import.py
+- Open the target spreadsheet
+- Deterimine the row number to start cleaning at
+- Run .\clean.py [row number]
+
+### 5b. Legacy Instructions for Manually Getting and Preparing the Data
 - Check sump_pump_run_times for the last date entered
 - Go to the Looker Studio View
 - Change the start date to the day of the last date entered
