@@ -1,15 +1,36 @@
 """
 import.py
 
-This script modifies a Google Sheet by converting 'Time' values from US Eastern to US Pacific timezone, rounding to the nearest minute, and formatting as 'YYYY-mm-dd h:m:00'.
-It then deletes all rows in the input sheet up to and including the most recent datetime found in the 'Timestamp' column of the target sheet.
+This script processes Google Sheets data for time zone conversion and data cleaning.
+
+Features:
+- Converts 'Time' values in the input sheet from US Eastern to US Pacific timezone, rounding to the nearest minute and formatting as 'YYYY-mm-dd h:m:00'.
+- Deletes all rows in the input sheet up to and including the most recent datetime found in the 'Timestamp' column of the target sheet.
+- Appends new timestamps from the input sheet to the target sheet and extends the 'Delta' formula for all new rows.
+- Handles Google Sheets API authentication and configuration via config.ini.
+- Logs all errors and key actions to 'clean_errors.log'.
 
 Usage:
     python import.py
 
 Requirements:
-    - config.ini with appropriate Google Sheets and credentials configuration
+    - config.ini with Google Sheets and credentials configuration
     - See requirements.txt for dependencies
+    - User must have access to the specified Google Sheets
+
+Command Line Arguments:
+    -h, --help      Show usage instructions
+
+Configuration:
+    - config.ini for sensitive settings (API keys, sheet names, credentials)
+    - user_settings.ini for user-specific non-sensitive settings
+
+Logging:
+    - All errors and info are logged to 'clean_errors.log'
+
+Exception Handling:
+    - Graceful handling of errors and KeyboardInterrupt (Ctrl-C)
+
 """
 
 import argparse
