@@ -323,7 +323,7 @@ def main() -> None:
     try:
         config = load_config()
         credentials_path = config['google']['credentials_json']
-        sheet_name = config['google']['sheet_name']
+        target_sheet_name = config['google']['target_sheet_name']
         input_sheet_name = config['google']['input_sheet_name']
 
         client = get_gspread_client(credentials_path)
@@ -333,7 +333,7 @@ def main() -> None:
         input_ws = input_sh.worksheet('Sheet1')
 
         # Open target spreadsheet and its Data tab
-        target_sh = client.open(sheet_name)
+        target_sh = client.open(target_sheet_name)
         target_ws = target_sh.worksheet('Data')
 
         # Get all records from input sheet

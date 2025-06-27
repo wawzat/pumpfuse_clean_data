@@ -49,7 +49,7 @@ def read_config() -> Dict[str, Any]:
         print('Failed to read configuration. See clean_errors.log for details.')
         sys.exit(1)
 
-def get_gsheet(sheet_name: str, credentials_json: str) -> gspread.Worksheet:
+def get_gsheet(target_sheet_name: str, credentials_json: str) -> gspread.Worksheet:
     """Connect to Google Sheets and return the worksheet object."""
     try:
         scope = [
@@ -58,7 +58,7 @@ def get_gsheet(sheet_name: str, credentials_json: str) -> gspread.Worksheet:
         ]
         creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_json, scope)
         client = gspread.authorize(creds)
-        sheet = client.open(sheet_name).sheet1
+        sheet = client.open(target_sheet_name).sheet1
         return sheet
     except Exception as e:
         logging.error(f"Error connecting to Google Sheet: {e}")
@@ -201,7 +201,7 @@ def main() -> None:
             print('Start row number must be an integer.')
             sys.exit(1)
         config = read_config()
-        sheet = get_gsheet(config['sheet_name'], config['credentials_json'])
+        sheet = get_gsheet(config['target_sheet_name'], config['credentials_json'])
         rows_to_process = len(sheet.get_all_values()) - start_row
         print(f"Rows to process: {rows_to_process}")
         rows_to_insert, update_ops, estimated_seconds = estimate_processing_time(sheet, start_row)
