@@ -1,6 +1,6 @@
-# Pumpfuse Import and Clean Data
+# PumpFuse Import and Clean Data
 
-These programs import, clean and interpolate missing timestamp data in a Google Sheet exported from the Pumpfuse logger.
+These programs import, clean and interpolate missing timestamp data in a Google Sheet exported from the PumpFuse logger.
 PumpFuse data are exported as a Google Sheet from the PumpFuse Looker Studio web page.
 
 ## Programs
