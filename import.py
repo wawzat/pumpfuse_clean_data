@@ -362,6 +362,32 @@ def main() -> None:
             logging.info("No valid timestamps found in target sheet.")
             return
 
+        # Print the latest datetime value and its associated row number before importing data
+        # Find the row number for the most recent timestamp
+        target_records = target_ws.get_all_records(expected_headers=expected_headers)
+        row_number = None
+        formats = [
+            '%Y-%m-%d %H:%M:%S',
+            '%Y-%m-%d %H:%M',
+            '%b %d, %Y, %I:%M:%S %p',
+            '%b %d, %Y, %I:%M %p'
+        ]
+        for idx, row in enumerate(target_records, start=2):  # Data starts at row 2
+            ts = row.get('Timestamp')
+            if not ts:
+                continue
+            for fmt in formats:
+                try:
+                    dt = datetime.strptime(ts, fmt)
+                    if dt == most_recent:
+                        row_number = idx
+                        break
+                except Exception:
+                    continue
+            if row_number is not None:
+                break
+        print(f"Latest datetime in 'Timestamp' column: {most_recent} (row {row_number})")
+
         # Re-fetch input records after update
         input_records = input_ws.get_all_records()
 
