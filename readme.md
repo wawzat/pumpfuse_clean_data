@@ -6,7 +6,7 @@ PumpFuse data are exported as a Google Sheet from the PumpFuse Looker Studio web
 ## Programs
 - getdate.py: gets the lastest date from the target sheet
 - import.py: imports data from the input sheet (PumpFuse_new) to the target sheet (sump_pump_run_times)
-- clean.py: Sometimes PumpFuse fails to record a run event. Clean will insert rows with a time that will equal the average of surrounding rows.
+- clean.py: Sometimes PumpFuse fails to record a run event. Clean will insert rows with a time that will yield a duration that will equal the average duration of preceeding rows.
 
 ## Features
 - Connects directly to Google Sheets using the Google Sheets API
