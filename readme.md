@@ -28,7 +28,7 @@ python -m pip install -r requirements.txt
 ```
 
 ### 3. Initial Google API Authentication
-- Instruction assmue you have setup Google Cloud and have a Google Service Accouont.
+- Instructions assmue you have already setup Google Cloud and have a Google API Service Accouont.
 - Go to the [Google Cloud Console](https://console.cloud.google.com/)
 - Create a new project (or use an existing one)
 - Enable the Google Sheets API and Google Drive API
@@ -54,7 +54,7 @@ input_sheet_name = PumpFuse_new
 - Remove any prior sheet named PumpFuse_new from Google Sheets
 - Open the saved sheet
 - Change the name to PumpFuse_new
-- Share the sheet with your Google API service account
+- Share the sheet with your Google API service account email address
 - Run .\import.py
 - import.py will print the latest date and Sheet row number to the terminal
 - Open the target spreadsheet
