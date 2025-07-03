@@ -244,29 +244,26 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         # Wait for the Share button and click it (now using <div> with role="button")
         share_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and contains(@aria-label, 'Share')]")))
         share_btn.click()
-        # Wait for the share dialog to appear
-        email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='email']")))
+        # Wait for the 'Add people, groups, and calendar events' input field
+        email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']")))
         email_input.clear()
         email_input.send_keys(email)
         time.sleep(1)  # Let suggestions load
         email_input.send_keys(Keys.ENTER)
         time.sleep(1)
-        # Uncheck 'Notify people' if checked
+        # Uncheck 'Notify people' checkbox if checked
         try:
-            notify_checkbox = wait.until(EC.presence_of_element_located(
-                (By.XPATH, "//div[@role='checkbox' and @aria-checked='true']")
-            ))
-            notify_checkbox.click()
+            notify_checkbox = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='checkbox' and @name='notify']")))
+            if notify_checkbox.is_selected():
+                notify_checkbox.click()
         except TimeoutException:
-            # Already unchecked
+            # Already unchecked or not present
             pass
-        # Click the Send button
-        send_btn = wait.until(EC.element_to_be_clickable(
-            (By.XPATH, "//span[text()='Send']/ancestor::button")
-        ))
+        # Click the Send button (look for button with span containing 'Send')
+        send_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[contains(text(),'Send')]]")))
         send_btn.click()
-        # Wait for the dialog to close
-        wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[@type='email']")))
+        # Wait for the dialog to close (input disappears)
+        wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']")))
         logging.info(f"Shared Google Sheet with {email} (notify people unchecked).")
         return True
     except Exception as e:
