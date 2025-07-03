@@ -251,7 +251,6 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         for iframe in iframes:
             try:
                 driver.switch_to.frame(iframe)
-                # Check if input is present in this iframe
                 if driver.find_elements(By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']"):
                     logging.info("Switched to share dialog iframe.")
                     break
@@ -261,7 +260,6 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         else:
             driver.switch_to.default_content()
 
-        # Wait for the 'Add people, groups, and calendar events' input field
         email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']")))
         driver.execute_script("arguments[0].scrollIntoView(true);", email_input)
         email_input.clear()
@@ -270,7 +268,6 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         time.sleep(1)
         email_input.send_keys(Keys.ENTER)
         time.sleep(1)
-        # Uncheck 'Notify people' checkbox if checked
         try:
             notify_checkbox = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='checkbox' and @name='notify']")))
             driver.execute_script("arguments[0].scrollIntoView(true);", notify_checkbox)
@@ -281,12 +278,17 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
                 logging.info("Notify people checkbox already unchecked.")
         except TimeoutException:
             logging.info("Notify people checkbox not found or already unchecked.")
-        # Click the Send button (look for button with span containing 'Send')
-        send_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[contains(text(),'Send')]]")))
-        driver.execute_script("arguments[0].scrollIntoView(true);", send_btn)
-        send_btn.click()
-        logging.info("Clicked Send button.")
-        # Wait for the dialog to close (input disappears)
+        # Click the Share or Send button (try Share first, then fallback to Send)
+        try:
+            share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Share']]")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
+            share_button.click()
+            logging.info("Clicked Share button in dialog.")
+        except Exception:
+            send_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[contains(text(),'Send')]]")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", send_btn)
+            send_btn.click()
+            logging.info("Clicked Send button in dialog.")
         wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']")))
         logging.info(f"Shared Google Sheet with {email} (notify people unchecked).")
         driver.switch_to.default_content()
