@@ -273,6 +273,26 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         logging.error(f"Failed to share Google Sheet: {e}")
         return False
 
+def wait_for_google_sheet_ready(driver: webdriver.Edge, timeout: int = 60) -> bool:
+    """
+    Waits for the Google Sheet to be fully loaded by waiting for the Share button to be clickable.
+
+    Args:
+        driver (webdriver.Edge): Selenium WebDriver instance with the sheet tab active.
+        timeout (int): Maximum time to wait for the sheet to load (in seconds).
+
+    Returns:
+        bool: True if the sheet is ready, False otherwise.
+    """
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[@aria-label='Share']"))
+        )
+        return True
+    except Exception as e:
+        logging.error(f"Google Sheet did not become ready in time: {e}")
+        return False
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -321,7 +341,10 @@ if __name__ == "__main__":
                 if len(driver.window_handles) > 1:
                     driver.switch_to.window(driver.window_handles[-1])
                     logging.info("Switched to Google Sheet tab for sharing.")
-                    share_google_sheet_with_service_account(driver)
+                    if wait_for_google_sheet_ready(driver, timeout=60):
+                        share_google_sheet_with_service_account(driver)
+                    else:
+                        logging.error("Google Sheet did not load in time for sharing.")
                 else:
                     logging.warning("Google Sheet tab not found for sharing.")
             else:
