@@ -1,7 +1,14 @@
 """
-Module to automate Looker Studio date range selection using Selenium.
+Automates Looker Studio date range selection, data export to Google Sheets, and Google Sheet sharing using Selenium.
 
-This script demonstrates how to open the date range selector and select a start date based on the latest datetime from a Google Sheet.
+This script:
+- Retrieves the latest datetime from a target Google Sheet (using gspread and config.ini for credentials).
+- Opens Looker Studio in Edge, selects a date range based on the latest sheet data, and exports the data to a new Google Sheet.
+- Switches to the exported Google Sheet tab and shares it with a service account, ensuring the 'Notify people' checkbox is unchecked.
+- Handles Google Sheets' and Looker Studio's dynamic UIs, including robust element selection and exception handling.
+- Provides logging for all major steps and errors, and supports graceful shutdown on Ctrl+C.
+
+Configuration, credentials, and user-specific settings are managed via config.ini.
 """
 
 import configparser
