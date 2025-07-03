@@ -244,10 +244,15 @@ if __name__ == "__main__":
     driver: Optional[webdriver.Edge] = None
     try:
         from selenium.webdriver.edge.options import Options
+        from selenium.webdriver.edge.service import Service
+        import os
         edge_options = Options()
         edge_options.add_argument(fr"--user-data-dir={edge_user_data_dir}")
         edge_options.add_argument("--profile-directory=Default")  # Change if you use a different profile
-        driver = webdriver.Edge(options=edge_options)
+        # Redirect browser stderr to suppress GPU/Chromium errors
+        edge_service = Service()
+        edge_service.log_path = os.devnull
+        driver = webdriver.Edge(options=edge_options, service=edge_service)
         driver.get(looker_url)
         logging.info(f"Opened URL: {looker_url}")
 
