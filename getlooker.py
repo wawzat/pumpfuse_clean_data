@@ -241,8 +241,8 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
     try:
         # Switch to the tab with the sheet (assume last tab is the sheet)
         driver.switch_to.window(driver.window_handles[-1])
-        # Wait for the Share button and click it
-        share_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@aria-label='Share']")))
+        # Wait for the Share button and click it (now using <div> with role="button")
+        share_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and contains(@aria-label, 'Share')]")))
         share_btn.click()
         # Wait for the share dialog to appear
         email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='email']")))
@@ -286,7 +286,7 @@ def wait_for_google_sheet_ready(driver: webdriver.Edge, timeout: int = 60) -> bo
     """
     try:
         WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable((By.XPATH, "//button[@aria-label='Share']"))
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and contains(@aria-label, 'Share')]"))
         )
         return True
     except Exception as e:
