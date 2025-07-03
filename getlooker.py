@@ -124,16 +124,17 @@ def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: in
         logging.error(f"Error selecting date: {e}")
         return False
 
-def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 10) -> bool:
+def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> bool:
     """
     Automates the export of data to Google Sheets via the Looker Studio UI.
 
     Steps:
-    1. Right-click the first data row to open the context menu.
-    2. Click the Export option.
-    3. Change the export name to 'PumpFuse_new'.
-    4. Select the Google Sheets radio button.
-    5. Click the Export button.
+    1. Wait for the first data row to appear (after date selection).
+    2. Right-click the first data row to open the context menu.
+    3. Click the Export option.
+    4. Change the export name to 'PumpFuse_new'.
+    5. Select the Google Sheets radio button.
+    6. Click the Export button.
 
     Args:
         driver (webdriver.Edge): Selenium WebDriver instance.
@@ -143,15 +144,18 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 10) -> b
         bool: True if export was successful, False otherwise.
     """
     from selenium.webdriver.common.action_chains import ActionChains
+    import time
     try:
         wait = WebDriverWait(driver, timeout)
         actions = ActionChains(driver)
 
-        # 1. Right-click the first data row in the table
+        # 1. Wait for the first data row to appear (after date selection)
         data_selector = ".centerColsContainer .row.block-0.index-0"
+        logging.info("Waiting for first data row to appear after date selection...")
         data_element = wait.until(
             EC.presence_of_element_located((By.CSS_SELECTOR, data_selector))
         )
+        time.sleep(1)  # Small buffer to ensure table is interactive
         actions.context_click(data_element).perform()
         logging.info("Right-clicked first data row to open context menu.")
 
@@ -172,21 +176,44 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 10) -> b
         name_input.send_keys("PumpFuse_new")
         logging.info("Changed export name to PumpFuse_new.")
 
-        # 4. Select the Google Sheets radio button by clicking the label or input
-        sheets_radio_xpath = "//label[contains(., 'Google Sheets')]/preceding::input[@type='radio'][1]"
-        sheets_radio = wait.until(
-            EC.element_to_be_clickable((By.XPATH, sheets_radio_xpath))
-        )
-        sheets_radio.click()
-        logging.info("Selected Google Sheets radio button.")
+        # 4. Select the Google Sheets radio button robustly
+        try:
+            # Try to find the label and click the associated input by id
+            label_xpath = "//label[contains(., 'Google Sheets')]"
+            label_elem = wait.until(
+                EC.presence_of_element_located((By.XPATH, label_xpath))
+            )
+            radio_id = label_elem.get_attribute("for")
+            if radio_id:
+                radio_input = driver.find_element(By.ID, radio_id)
+                driver.execute_script("arguments[0].scrollIntoView(true);", radio_input)
+                if not radio_input.is_selected():
+                    radio_input.click()
+                    logging.info("Selected Google Sheets radio button via input id.")
+                else:
+                    logging.info("Google Sheets radio button already selected.")
+            else:
+                # Fallback: click the parent radio button
+                parent_radio = label_elem.find_element(By.XPATH, "ancestor::mat-radio-button")
+                driver.execute_script("arguments[0].scrollIntoView(true);", parent_radio)
+                parent_radio.click()
+                logging.info("Selected Google Sheets radio button via parent mat-radio-button.")
+        except Exception as e:
+            logging.error(f"Could not select Google Sheets radio button: {e}")
+            return False
 
         # 5. Click the Export button (look for button with span containing 'Export')
-        export_button_xpath = "//button[.//span[contains(text(),'Export')]]"
-        export_button = wait.until(
-            EC.element_to_be_clickable((By.XPATH, export_button_xpath))
-        )
-        export_button.click()
-        logging.info("Clicked Export button to complete export.")
+        try:
+            export_button_xpath = "//button[.//span[contains(text(),'Export')]]"
+            export_button = wait.until(
+                EC.element_to_be_clickable((By.XPATH, export_button_xpath))
+            )
+            driver.execute_script("arguments[0].scrollIntoView(true);", export_button)
+            export_button.click()
+            logging.info("Clicked Export button to complete export.")
+        except Exception as e:
+            logging.error(f"Could not click Export button: {e}")
+            return False
 
         return True
     except Exception as e:
