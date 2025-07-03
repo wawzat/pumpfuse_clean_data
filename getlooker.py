@@ -293,6 +293,31 @@ def wait_for_google_sheet_ready(driver: webdriver.Edge, timeout: int = 60) -> bo
         logging.error(f"Google Sheet did not become ready in time: {e}")
         return False
 
+def switch_to_sheet_tab_by_title(driver: webdriver.Edge, sheet_title: str = "PumpFuse_new", timeout: int = 60) -> bool:
+    """
+    Switches to the browser tab whose title contains the given sheet_title.
+
+    Args:
+        driver (webdriver.Edge): Selenium WebDriver instance.
+        sheet_title (str): Substring to look for in the tab title.
+        timeout (int): Maximum time to wait for the tab to appear (in seconds).
+
+    Returns:
+        bool: True if switched successfully, False otherwise.
+    """
+    import time
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        for handle in driver.window_handles:
+            driver.switch_to.window(handle)
+            try:
+                if sheet_title.lower() in driver.title.lower():
+                    return True
+            except Exception:
+                continue
+        time.sleep(2)
+    return False
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -337,9 +362,8 @@ if __name__ == "__main__":
             logging.info("Date selection completed successfully.")
             if export_data_to_google_sheets(driver):
                 logging.info("Export to Google Sheets completed successfully.")
-                # Switch to the new tab (Google Sheet) and share it
-                if len(driver.window_handles) > 1:
-                    driver.switch_to.window(driver.window_handles[-1])
+                # Switch to the tab with the correct sheet title and share it
+                if switch_to_sheet_tab_by_title(driver, sheet_title="PumpFuse_new"):
                     logging.info("Switched to Google Sheet tab for sharing.")
                     if wait_for_google_sheet_ready(driver, timeout=60):
                         share_google_sheet_with_service_account(driver)
