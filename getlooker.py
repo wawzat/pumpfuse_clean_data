@@ -227,16 +227,11 @@ if __name__ == "__main__":
     config.read("config.ini")
     looker_url = config["looker"]["report_url"]
     windows_username = config.get("windows", "username", fallback=None)
-    profile_directory = config.get("windows", "profile_directory", fallback="Default")
     if not windows_username:
         logging.error("No Windows username found in config.ini under [windows] section.")
         sys.exit(1)
     edge_user_data_dir = fr"C:\\Users\\{windows_username}\\AppData\\Local\\Microsoft\\Edge\\User Data"
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
-
-    # Reduce noisy urllib3/selenium warnings after shutdown
-    logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
-    logging.getLogger("selenium.webdriver.remote.remote_connection").setLevel(logging.ERROR)
 
     # Get latest datetime from Google Sheet
     latest_dt = get_latest_datetime_from_sheet()
@@ -251,7 +246,7 @@ if __name__ == "__main__":
         from selenium.webdriver.edge.options import Options
         edge_options = Options()
         edge_options.add_argument(fr"--user-data-dir={edge_user_data_dir}")
-        edge_options.add_argument(f"--profile-directory={profile_directory}")
+        edge_options.add_argument("--profile-directory=Default")  # Change if you use a different profile
         driver = webdriver.Edge(options=edge_options)
         driver.get(looker_url)
         logging.info(f"Opened URL: {looker_url}")
@@ -270,18 +265,12 @@ if __name__ == "__main__":
             logging.error("Date selection failed.")
 
     except KeyboardInterrupt:
-        logging.info("Script interrupted by user. Closing browser.")
-        if driver:
-            try:
-                driver.quit()
-            except Exception as e:
-                logging.debug(f"Suppressed error during driver.quit(): {e}")
-        sys.exit(0)
+        logging.info("Script interrupted by user.")
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
     finally:
-        # Only enter the input loop if not interrupted by KeyboardInterrupt
         if driver:
+            logging.info("Leaving Looker Studio page open for user inspection. Close the browser window manually when done.")
             try:
                 while True:
                     input("Press Ctrl+C in this terminal to close the browser and exit the script...\n")
@@ -290,4 +279,5 @@ if __name__ == "__main__":
                 try:
                     driver.quit()
                 except Exception as e:
+                    # Suppress errors if the browser is already closed or unreachable
                     logging.debug(f"Suppressed error during driver.quit(): {e}")
