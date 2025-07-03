@@ -221,7 +221,7 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
         logging.error(f"Error during export to Google Sheets: {e}")
         return False
 
-def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path: str = "config.ini", timeout: int = 20) -> bool:
+def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path: str = "config.ini", timeout: int = 30) -> bool:
     """
     Shares the currently open Google Sheet with the service account email and unchecks the 'Notify people' checkbox.
 
@@ -239,35 +239,61 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
     email = config.get('google', 'SERVICE_ACCOUNT_USER_EMAIL')
     wait = WebDriverWait(driver, timeout)
     try:
-        # Switch to the tab with the sheet (assume last tab is the sheet)
         driver.switch_to.window(driver.window_handles[-1])
-        # Wait for the Share button and click it (now using <div> with role="button")
         share_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and contains(@aria-label, 'Share')]")))
+        driver.execute_script("arguments[0].scrollIntoView(true);", share_btn)
         share_btn.click()
+        logging.info("Clicked Share button.")
+        time.sleep(2)  # Give dialog time to appear
+
+        # Check for iframe and switch if present
+        iframes = driver.find_elements(By.TAG_NAME, "iframe")
+        for iframe in iframes:
+            try:
+                driver.switch_to.frame(iframe)
+                # Check if input is present in this iframe
+                if driver.find_elements(By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']"):
+                    logging.info("Switched to share dialog iframe.")
+                    break
+                driver.switch_to.default_content()
+            except Exception:
+                driver.switch_to.default_content()
+        else:
+            driver.switch_to.default_content()
+
         # Wait for the 'Add people, groups, and calendar events' input field
         email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']")))
+        driver.execute_script("arguments[0].scrollIntoView(true);", email_input)
         email_input.clear()
         email_input.send_keys(email)
-        time.sleep(1)  # Let suggestions load
+        logging.info(f"Entered email: {email}")
+        time.sleep(1)
         email_input.send_keys(Keys.ENTER)
         time.sleep(1)
         # Uncheck 'Notify people' checkbox if checked
         try:
             notify_checkbox = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='checkbox' and @name='notify']")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", notify_checkbox)
             if notify_checkbox.is_selected():
                 notify_checkbox.click()
+                logging.info("Unchecked Notify people checkbox.")
+            else:
+                logging.info("Notify people checkbox already unchecked.")
         except TimeoutException:
-            # Already unchecked or not present
-            pass
+            logging.info("Notify people checkbox not found or already unchecked.")
         # Click the Send button (look for button with span containing 'Send')
         send_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[contains(text(),'Send')]]")))
+        driver.execute_script("arguments[0].scrollIntoView(true);", send_btn)
         send_btn.click()
+        logging.info("Clicked Send button.")
         # Wait for the dialog to close (input disappears)
         wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']")))
         logging.info(f"Shared Google Sheet with {email} (notify people unchecked).")
+        driver.switch_to.default_content()
         return True
     except Exception as e:
         logging.error(f"Failed to share Google Sheet: {e}")
+        driver.switch_to.default_content()
         return False
 
 def wait_for_google_sheet_ready(driver: webdriver.Edge, timeout: int = 60) -> bool:
