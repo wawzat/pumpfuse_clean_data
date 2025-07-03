@@ -73,7 +73,7 @@ def get_latest_datetime_from_sheet(config_path: str = "config.ini") -> Optional[
 
 def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: int = 10) -> bool:
     """
-    Opens the Looker Studio date range selector and selects the given start date.
+    Opens the Looker Studio date range selector and selects the given start date, then clicks the Apply button.
 
     Args:
         driver (webdriver.Edge): Selenium WebDriver instance.
@@ -81,7 +81,7 @@ def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: in
         timeout (int): Maximum time to wait for elements (in seconds).
 
     Returns:
-        bool: True if the date was selected successfully, False otherwise.
+        bool: True if the date was selected and applied successfully, False otherwise.
     """
     try:
         # Wait for the date range selector to be clickable and click it
@@ -105,6 +105,18 @@ def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: in
         )
         start_date_cell.click()
         logging.info(f"Selected start date: {start_day}")
+
+        # Wait for and click the Apply button
+        apply_xpath = "//button[.//span[normalize-space(text())='Apply']] | //span[normalize-space(text())='Apply']"
+        try:
+            apply_button = wait.until(
+                EC.element_to_be_clickable((By.XPATH, apply_xpath))
+            )
+            apply_button.click()
+            logging.info("Clicked Apply button.")
+        except TimeoutException:
+            logging.error("Apply button not found or not clickable.")
+            return False
 
         return True
 
