@@ -163,25 +163,25 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 10) -> b
         export_option.click()
         logging.info("Clicked Export option in context menu.")
 
-        # 3. Change the export name to 'PumpFuse_new'
-        name_input_xpath = "//input[@name='name' or @aria-label='Name']"
+        # 3. Change the export name to 'PumpFuse_new' using the export-name-field class
+        name_input_css = "input.export-name-field"
         name_input = wait.until(
-            EC.visibility_of_element_located((By.XPATH, name_input_xpath))
+            EC.visibility_of_element_located((By.CSS_SELECTOR, name_input_css))
         )
         name_input.clear()
         name_input.send_keys("PumpFuse_new")
         logging.info("Changed export name to PumpFuse_new.")
 
-        # 4. Select the Google Sheets radio button
-        sheets_radio_xpath = "//span[normalize-space(text())='Google Sheets']/preceding-sibling::span[contains(@class, 'mat-radio-outer-circle') or contains(@class, 'mdc-radio__outer-circle')]"
+        # 4. Select the Google Sheets radio button by clicking the label or input
+        sheets_radio_xpath = "//label[contains(., 'Google Sheets')]/preceding::input[@type='radio'][1]"
         sheets_radio = wait.until(
             EC.element_to_be_clickable((By.XPATH, sheets_radio_xpath))
         )
         sheets_radio.click()
         logging.info("Selected Google Sheets radio button.")
 
-        # 5. Click the Export button
-        export_button_xpath = "//button[.//span[normalize-space(text())='Export']] | //span[normalize-space(text())='Export']"
+        # 5. Click the Export button (look for button with span containing 'Export')
+        export_button_xpath = "//button[.//span[contains(text(),'Export')]]"
         export_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, export_button_xpath))
         )
