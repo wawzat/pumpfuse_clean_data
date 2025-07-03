@@ -226,6 +226,11 @@ if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read("config.ini")
     looker_url = config["looker"]["report_url"]
+    windows_username = config.get("windows", "username", fallback=None)
+    if not windows_username:
+        logging.error("No Windows username found in config.ini under [windows] section.")
+        sys.exit(1)
+    edge_user_data_dir = fr"C:\\Users\\{windows_username}\\AppData\\Local\\Microsoft\\Edge\\User Data"
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
     # Get latest datetime from Google Sheet
@@ -238,7 +243,11 @@ if __name__ == "__main__":
 
     driver: Optional[webdriver.Edge] = None
     try:
-        driver = webdriver.Edge()
+        from selenium.webdriver.edge.options import Options
+        edge_options = Options()
+        edge_options.add_argument(fr"--user-data-dir={edge_user_data_dir}")
+        edge_options.add_argument("--profile-directory=Default")  # Change if you use a different profile
+        driver = webdriver.Edge(options=edge_options)
         driver.get(looker_url)
         logging.info(f"Opened URL: {looker_url}")
 
