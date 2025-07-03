@@ -279,5 +279,23 @@ if __name__ == "__main__":
                 try:
                     driver.quit()
                 except Exception as e:
-                    # Suppress errors if the browser is already closed or unreachable
-                    logging.debug(f"Suppressed error during driver.quit(): {e}")
+                    import traceback
+                    # Suppress expected connection errors on shutdown (e.g., ConnectionResetError, urllib3 warnings)
+                    err_str = str(e)
+                    if any(msg in err_str for msg in [
+                        'ConnectionResetError',
+                        'Failed to establish a new connection',
+                        'actively refused',
+                        'connection was forcibly closed',
+                        'invalid session id',
+                        'invalid after WaitForGetOffsetInRange',
+                        'Retry(total=',
+                        'NewConnectionError',
+                        'MaxRetryError',
+                        'HTTPConnection object',
+                    ]):
+                        logging.debug(f"Suppressed expected shutdown error: {e}")
+                        logging.debug(traceback.format_exc())
+                    else:
+                        logging.error(f"Unexpected error during driver.quit(): {e}")
+                        logging.debug(traceback.format_exc())
