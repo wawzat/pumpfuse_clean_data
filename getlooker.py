@@ -14,6 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.webdriver.common.keys import Keys
 
 def get_latest_datetime_from_sheet(config_path: str = "config.ini") -> Optional[datetime]:
     """
@@ -220,6 +221,58 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
         logging.error(f"Error during export to Google Sheets: {e}")
         return False
 
+def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path: str = "config.ini", timeout: int = 20) -> bool:
+    """
+    Shares the currently open Google Sheet with the service account email and unchecks the 'Notify people' checkbox.
+
+    Args:
+        driver (webdriver.Edge): Selenium WebDriver instance with the sheet open.
+        config_path (str): Path to the config.ini file.
+        timeout (int): Maximum time to wait for elements (in seconds).
+
+    Returns:
+        bool: True if sharing was successful, False otherwise.
+    """
+    import time
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    email = config.get('google', 'SERVICE_ACCOUNT_USER_EMAIL')
+    wait = WebDriverWait(driver, timeout)
+    try:
+        # Switch to the tab with the sheet (assume last tab is the sheet)
+        driver.switch_to.window(driver.window_handles[-1])
+        # Wait for the Share button and click it
+        share_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@aria-label='Share']")))
+        share_btn.click()
+        # Wait for the share dialog to appear
+        email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='email']")))
+        email_input.clear()
+        email_input.send_keys(email)
+        time.sleep(1)  # Let suggestions load
+        email_input.send_keys(Keys.ENTER)
+        time.sleep(1)
+        # Uncheck 'Notify people' if checked
+        try:
+            notify_checkbox = wait.until(EC.presence_of_element_located(
+                (By.XPATH, "//div[@role='checkbox' and @aria-checked='true']")
+            ))
+            notify_checkbox.click()
+        except TimeoutException:
+            # Already unchecked
+            pass
+        # Click the Send button
+        send_btn = wait.until(EC.element_to_be_clickable(
+            (By.XPATH, "//span[text()='Send']/ancestor::button")
+        ))
+        send_btn.click()
+        # Wait for the dialog to close
+        wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[@type='email']")))
+        logging.info(f"Shared Google Sheet with {email} (notify people unchecked).")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to share Google Sheet: {e}")
+        return False
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -264,6 +317,13 @@ if __name__ == "__main__":
             logging.info("Date selection completed successfully.")
             if export_data_to_google_sheets(driver):
                 logging.info("Export to Google Sheets completed successfully.")
+                # Switch to the new tab (Google Sheet) and share it
+                if len(driver.window_handles) > 1:
+                    driver.switch_to.window(driver.window_handles[-1])
+                    logging.info("Switched to Google Sheet tab for sharing.")
+                    share_google_sheet_with_service_account(driver)
+                else:
+                    logging.warning("Google Sheet tab not found for sharing.")
             else:
                 logging.error("Export to Google Sheets failed.")
         else:
