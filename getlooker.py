@@ -277,6 +277,15 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 logging.info("User requested shutdown. Closing browser.")
                 try:
+                    # Suppress urllib3 and selenium warnings during shutdown
+                    import logging as pylogging
+                    for noisy_logger in [
+                        'urllib3.connectionpool',
+                        'urllib3.util.retry',
+                        'selenium.webdriver.remote.remote_connection',
+                        'selenium.webdriver.remote.errorhandler',
+                    ]:
+                        pylogging.getLogger(noisy_logger).setLevel(pylogging.ERROR)
                     driver.quit()
                 except Exception as e:
                     import traceback
