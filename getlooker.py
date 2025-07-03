@@ -238,7 +238,12 @@ if __name__ == "__main__":
 
     driver: Optional[webdriver.Edge] = None
     try:
-        driver = webdriver.Edge()
+        from selenium.webdriver.edge.options import Options
+        edge_options = Options()
+        # Set the path to your Edge user data directory and profile
+        edge_options.add_argument(r"--user-data-dir=C:\\Users\\<YourUsername>\\AppData\\Local\\Microsoft\\Edge\\User Data")
+        edge_options.add_argument("--profile-directory=Default")  # Change if you use a different profile
+        driver = webdriver.Edge(options=edge_options)
         driver.get(looker_url)
         logging.info(f"Opened URL: {looker_url}")
 
