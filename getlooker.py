@@ -267,4 +267,8 @@ if __name__ == "__main__":
                     input("Press Ctrl+C in this terminal to close the browser and exit the script...\n")
             except KeyboardInterrupt:
                 logging.info("User requested shutdown. Closing browser.")
-                driver.quit()
+                try:
+                    driver.quit()
+                except Exception as e:
+                    # Suppress errors if the browser is already closed or unreachable
+                    logging.debug(f"Suppressed error during driver.quit(): {e}")
