@@ -5,10 +5,12 @@ PumpFuse data are exported as a Google Sheet from the PumpFuse Looker Studio web
 
 ## Programs
 - getdate.py: gets the lastest date from the target sheet
+- getlooker.py: gets new data from Looker Studio and saves it to the input Google Sheet
 - import.py: imports data from the input sheet (PumpFuse_new) to the target sheet (sump_pump_run_times)
 - clean.py: Sometimes PumpFuse fails to record a run event. Clean will insert rows with a time that will yield a duration that will equal the average duration of preceeding rows.
 
 ## Features
+- Uses Selenium to scrape Looker Studio into the input Google Sheet
 - Connects directly to Google Sheets using the Google Sheets API
 - Detects and interpolates missing timestamps based on delta analysis
 - Marks cleaned rows for traceability
@@ -41,11 +43,28 @@ Example `config.ini`:
 ```
 [google]
 credentials_json = path/to/your/credentials.json
+SERVICE_ACCOUNT_USER_EMAIL = your-service-account@your-project.iam.gserviceaccount.com
 target_sheet_name = sump_pump_run_times
 input_sheet_name = PumpFuse_new
+
+[looker]
+report_url = https://lookerstudio.google.com/your-looker-report-url
+
+[windows]
+username = your_windows_username
 ```
 
 ### 5. Get and Prepare the Data
+- activate the virtual environment: .\.venv\Scripts\activate
+- Run getlooker.py to get the data from Looker Studio to Google Sheets
+- Run .\import.py
+- import.py will print the latest date and Sheet row number to the terminal
+- Open the target spreadsheet
+- Deterimine the row number to start cleaning at (suggest one row before the number printed by import.py)
+- Run .\clean.py '<start_row_number>'
+- Delete the PumpFuse_new Google Sheet.
+
+### 5b. Legacy Instructions for Getting and Preparing the Data without using getlooker.py
 - activate the virtual environment: .\.venv\Scripts\activate
 - Run Python .\getdate.py to get the latest date from the target spreadsheet
 - Go to the Looker Studio View
@@ -60,8 +79,9 @@ input_sheet_name = PumpFuse_new
 - Open the target spreadsheet
 - Deterimine the row number to start cleaning at (suggest one row before the number printed by import.py)
 - Run .\clean.py '<start_row_number>'
+- Delete the PumpFuse_new Google Sheet.
 
-### 5b. Legacy Instructions for Manually Getting and Preparing the Data
+### 5c. Legacy Instructions for Manually Getting and Preparing the Data
 - Check sump_pump_run_times for the last date entered
 - Go to the Looker Studio View
 - Change the start date to the day of the last date entered
