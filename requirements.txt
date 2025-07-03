@@ -1,5 +1,7 @@
+selenium
+requests
 gspread
 oauth2client
-pytz
+pandas
 configparser
 tqdm
