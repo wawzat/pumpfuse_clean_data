@@ -124,6 +124,75 @@ def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: in
         logging.error(f"Error selecting date: {e}")
         return False
 
+def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 10) -> bool:
+    """
+    Automates the export of data to Google Sheets via the Looker Studio UI.
+
+    Steps:
+    1. Right-click the first data row to open the context menu.
+    2. Click the Export option.
+    3. Change the export name to 'PumpFuse_new'.
+    4. Select the Google Sheets radio button.
+    5. Click the Export button.
+
+    Args:
+        driver (webdriver.Edge): Selenium WebDriver instance.
+        timeout (int): Maximum time to wait for elements (in seconds).
+
+    Returns:
+        bool: True if export was successful, False otherwise.
+    """
+    from selenium.webdriver.common.action_chains import ActionChains
+    try:
+        wait = WebDriverWait(driver, timeout)
+        actions = ActionChains(driver)
+
+        # 1. Right-click the first data row in the table
+        data_selector = ".centerColsContainer .row.block-0.index-0"
+        data_element = wait.until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, data_selector))
+        )
+        actions.context_click(data_element).perform()
+        logging.info("Right-clicked first data row to open context menu.")
+
+        # 2. Click the Export option in the context menu (by data-test-id)
+        export_option_xpath = "//button[@data-test-id='Export']"
+        export_option = wait.until(
+            EC.element_to_be_clickable((By.XPATH, export_option_xpath))
+        )
+        export_option.click()
+        logging.info("Clicked Export option in context menu.")
+
+        # 3. Change the export name to 'PumpFuse_new'
+        name_input_xpath = "//input[@name='name' or @aria-label='Name']"
+        name_input = wait.until(
+            EC.visibility_of_element_located((By.XPATH, name_input_xpath))
+        )
+        name_input.clear()
+        name_input.send_keys("PumpFuse_new")
+        logging.info("Changed export name to PumpFuse_new.")
+
+        # 4. Select the Google Sheets radio button
+        sheets_radio_xpath = "//span[normalize-space(text())='Google Sheets']/preceding-sibling::span[contains(@class, 'mat-radio-outer-circle') or contains(@class, 'mdc-radio__outer-circle')]"
+        sheets_radio = wait.until(
+            EC.element_to_be_clickable((By.XPATH, sheets_radio_xpath))
+        )
+        sheets_radio.click()
+        logging.info("Selected Google Sheets radio button.")
+
+        # 5. Click the Export button
+        export_button_xpath = "//button[.//span[normalize-space(text())='Export']] | //span[normalize-space(text())='Export']"
+        export_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH, export_button_xpath))
+        )
+        export_button.click()
+        logging.info("Clicked Export button to complete export.")
+
+        return True
+    except Exception as e:
+        logging.error(f"Error during export to Google Sheets: {e}")
+        return False
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -152,6 +221,10 @@ if __name__ == "__main__":
 
         if select_looker_date_range(driver, start_day):
             logging.info("Date selection completed successfully.")
+            if export_data_to_google_sheets(driver):
+                logging.info("Export to Google Sheets completed successfully.")
+            else:
+                logging.error("Export to Google Sheets failed.")
         else:
             logging.error("Date selection failed.")
 
