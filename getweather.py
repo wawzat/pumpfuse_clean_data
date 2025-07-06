@@ -140,14 +140,21 @@ def parse_timestamp(ts: str) -> Optional[datetime]:
 
 def ensure_weather_columns(ws: Worksheet, headers: List[str]) -> None:
     """
-    Ensure the worksheet has weather columns in columns E, F, G with units in names; add if missing.
+    Ensure the worksheet has correct weather column headers in columns D, E, F; do not insert columns, just update headers if needed.
     """
     weather_cols = ['Precipitation (in)', 'Temperature (F)', 'Humidity (%)']
-    # Insert at columns D, E, F (4, 5, 6)
+    # Only update headers in columns D, E, F (4, 5, 6)
+    headers_updated = False
     for idx, col in enumerate(weather_cols, start=4):
-        if len(headers) < idx or headers[idx-1] != col:
-            ws.insert_cols([[col]], col=idx)
-            logging.info(f"Added weather column: {col} at position {idx}")
+        if len(headers) < idx:
+            # If headers are too short, pad them
+            headers += [''] * (idx - len(headers) + 1)
+        if headers[idx-1] != col:
+            ws.update_cell(1, idx, col)
+            headers_updated = True
+            logging.info(f"Set weather column header: {col} at position {idx}")
+    if headers_updated:
+        logging.info("Weather column headers updated in columns D-F.")
 
 
 def update_sheet_with_weather(ws: Worksheet, start_row: int, weather_results: List[Dict[str, Any]], headers: List[str]) -> None:
