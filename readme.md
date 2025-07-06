@@ -1,13 +1,14 @@
 # PumpFuse Import and Clean Data
 
 These programs import, clean and interpolate missing timestamp data in a Google Sheet exported from the PumpFuse logger.
-PumpFuse data are exported as a Google Sheet from the PumpFuse Looker Studio web page.
+PumpFuse data are exported as a Google Sheet from the PumpFuse Looker Studio web page. Weather data is obtained from open-metro
 
 ## Programs
-- getdate.py: gets the lastest date from the target sheet
-- getlooker.py: gets new data from Looker Studio and saves it to the input Google Sheet
-- import.py: imports data from the input sheet (PumpFuse_new) to the target sheet (sump_pump_run_times)
+- getdate.py: gets the lastest date from the target sheet.
+- getlooker.py: gets new data from Looker Studio and saves it to the input Google Sheet.
+- import.py: imports data from the input sheet (PumpFuse_new) to the target sheet (sump_pump_run_times).
 - clean.py: Sometimes PumpFuse fails to record a run event. Clean will insert rows with a time that will yield a duration that will equal the average duration of preceeding rows.
+- getweather.py: Gets weather data from open-metro and adds it to the target sheet.
 
 ## Features
 - Uses Selenium to scrape Looker Studio into the input Google Sheet
@@ -39,15 +40,21 @@ python -m pip install -r requirements.txt
 - Place the credentials file path in `config.ini` (see below)
 
 ### 4. Configure `config.ini`
+
 Example `config.ini`:
 ```
 [google]
-credentials_json = path/to/your/credentials.json
-SERVICE_ACCOUNT_USER_EMAIL = your-service-account@your-project.iam.gserviceaccount.com
+credentials_json = C:/path/to/your/credentials.json
+SERVICE_ACCOUNT_USER_EMAIL = service-account@your-project.iam.gserviceaccount.com
 target_sheet_name = sump_pump_run_times
 input_sheet_name = PumpFuse_new
 
+[weather]
+latitude = 00.0000
+longitude = 00.0000
+
 [looker]
+# Looker Studio report URL
 report_url = https://lookerstudio.google.com/your-looker-report-url
 
 [windows]
@@ -62,6 +69,7 @@ username = your_windows_username
 - Open the target spreadsheet
 - Deterimine the row number to start cleaning at (suggest one row before the number printed by import.py)
 - Run .\clean.py '<start_row_number>'
+- Run .\getweather.py
 - Delete the PumpFuse_new Google Sheet.
 
 ### 5b. Legacy Instructions for Getting and Preparing the Data without using getlooker.py
@@ -79,6 +87,7 @@ username = your_windows_username
 - Open the target spreadsheet
 - Deterimine the row number to start cleaning at (suggest one row before the number printed by import.py)
 - Run .\clean.py '<start_row_number>'
+- Run .\getweather.py
 - Delete the PumpFuse_new Google Sheet.
 
 ### 5c. Legacy Instructions for Manually Getting and Preparing the Data
