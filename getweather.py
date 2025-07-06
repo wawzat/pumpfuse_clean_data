@@ -241,6 +241,15 @@ def main() -> None:
         weather_df = fetch_weather_data(start_dt, end_dt, latitude, longitude)
 
         # For each record, find the nearest hour in weather_df
+        import math
+        def clean_value(val):
+            # Convert NaN, inf, -inf to None for Google Sheets compatibility
+            if val is None:
+                return None
+            if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+                return None
+            return val
+
         weather_results = []
         for r in records:
             ts = parse_timestamp(r.get('Timestamp', ''))
@@ -250,9 +259,9 @@ def main() -> None:
             nearest = weather_df.index.get_indexer([ts], method='nearest')[0]
             weather_row = weather_df.iloc[nearest]
             weather_results.append({
-                'Precipitation (in)': weather_row['Precipitation (in)'],
-                'Temperature (F)': weather_row['Temperature (F)'],
-                'Humidity (%)': weather_row['Humidity (%)']
+                'Precipitation (in)': clean_value(weather_row['Precipitation (in)']),
+                'Temperature (F)': clean_value(weather_row['Temperature (F)']),
+                'Humidity (%)': clean_value(weather_row['Humidity (%)'])
             })
 
         update_sheet_with_weather(ws, start_row, weather_results, headers)
