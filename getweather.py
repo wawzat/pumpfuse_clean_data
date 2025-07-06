@@ -2,10 +2,10 @@
 getweather.py
 
 Fetches historical weather data (temperature, humidity, precipitation) from Open-Meteo for each row in the target Google Sheet,
-starting from a specified row. Weather data is matched to each timestamp by nearest hour and written back to the sheet.
+starting from a specified row or auto-detecting the next row to process if not specified. Weather data is matched to each timestamp by nearest hour and written back to the sheet.
 
 Usage:
-    python getweather.py --start-row 2
+    python getweather.py [--start-row N]
 
 Requirements:
     - config.ini with Google Sheets and credentials configuration
@@ -13,7 +13,7 @@ Requirements:
     - User must have access to the specified Google Sheets
 
 Command Line Arguments:
-    --start-row, -s   Row number to start processing (1-based, header is row 1)
+    --start-row, -s   Optional row number to start processing (1-based, header is row 1). If not provided, the script will auto-detect the next row to process.
     -h, --help        Show usage instructions
 
 Configuration:
@@ -34,7 +34,6 @@ import gspread
 from gspread.worksheet import Worksheet
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
-import time
 
 # Set up logging
 logging.basicConfig(
