@@ -143,8 +143,8 @@ def ensure_weather_columns(ws: Worksheet, headers: List[str]) -> None:
     Ensure the worksheet has weather columns in columns E, F, G with units in names; add if missing.
     """
     weather_cols = ['Precipitation (in)', 'Temperature (F)', 'Humidity (%)']
-    # Insert at columns E, F, G (5, 6, 7)
-    for idx, col in enumerate(weather_cols, start=5):
+    # Insert at columns D, E, F (4, 5, 6)
+    for idx, col in enumerate(weather_cols, start=4):
         if len(headers) < idx or headers[idx-1] != col:
             ws.insert_cols([[col]], col=idx)
             logging.info(f"Added weather column: {col} at position {idx}")
@@ -162,10 +162,10 @@ def update_sheet_with_weather(ws: Worksheet, start_row: int, weather_results: Li
     ]
     end_row = start_row + len(values) - 1
     try:
-        ws.update(values, f'E{start_row}:G{end_row}')
-        logging.info(f"Batch updated weather data in range E{start_row}:G{end_row}")
+        ws.update(values, f'D{start_row}:F{end_row}')
+        logging.info(f"Batch updated weather data in range D{start_row}:F{end_row}")
     except Exception as e:
-        logging.error(f"Batch update failed for range E{start_row}:G{end_row}: {e}")
+        logging.error(f"Batch update failed for range D{start_row}:F{end_row}: {e}")
 
 
 def main() -> None:
