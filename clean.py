@@ -111,11 +111,12 @@ def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | No
                     for n in range(1, n_missing):
                         new_ts = prev_ts + timedelta(hours=avg_delta * n)
                         insert_row_index = row + n
+                        # Insert CLEANED_MARK in column G (index 7)
                         insert_row = [
                             '',
                             format_timestamp(new_ts),
                             f'=IF(ISDATE(B{insert_row_index}),ROUND((B{insert_row_index}-B{insert_row_index - 1})*24,2),)',
-                            CLEANED_MARK
+                            '', '', '', CLEANED_MARK
                         ]
                         try:
                             sheet.insert_row(insert_row, insert_row_index, value_input_option='USER_ENTERED')
