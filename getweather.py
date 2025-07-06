@@ -240,7 +240,6 @@ def main() -> None:
         end_dt = max(timestamps)
         weather_df = fetch_weather_data(start_dt, end_dt, latitude, longitude)
 
-
         # For each record, find the nearest hour in weather_df
         weather_results = []
         for r in records:
@@ -256,23 +255,8 @@ def main() -> None:
                 'Humidity (%)': weather_row['Humidity (%)']
             })
 
-        def clean_weather_results(results: list[dict]) -> list[dict]:
-            """Replace NaN or None values with empty strings for Google Sheets compatibility."""
-            import math
-            cleaned = []
-            for row in results:
-                cleaned_row = {}
-                for k, v in row.items():
-                    if v is None or (isinstance(v, float) and (math.isnan(v))):
-                        cleaned_row[k] = ""
-                    else:
-                        cleaned_row[k] = v
-                cleaned.append(cleaned_row)
-            return cleaned
-
-        weather_results_clean = clean_weather_results(weather_results)
-        update_sheet_with_weather(ws, start_row, weather_results_clean, headers)
-        print(f"Weather data added to rows {start_row} to {start_row + len(weather_results_clean) - 1}.")
+        update_sheet_with_weather(ws, start_row, weather_results, headers)
+        print(f"Weather data added to rows {start_row} to {start_row + len(weather_results) - 1}.")
 
     except KeyboardInterrupt:
         logging.info("Process interrupted by user.")
