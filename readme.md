@@ -1,14 +1,14 @@
 # PumpFuse Import and Clean Data
 
 These programs import, clean and interpolate missing timestamp data in a Google Sheet exported from the PumpFuse logger.
-PumpFuse data are exported as a Google Sheet from the PumpFuse Looker Studio web page. Weather data is obtained from open-metro
+PumpFuse data are exported as a Google Sheet from the PumpFuse Looker Studio web page. Weather data is obtained from open-meteo
 
 ## Programs
 - getdate.py: gets the lastest date from the target sheet.
 - getlooker.py: gets new data from Looker Studio and saves it to the input Google Sheet.
 - import.py: imports data from the input sheet (PumpFuse_new) to the target sheet (sump_pump_run_times).
 - clean.py: Sometimes PumpFuse fails to record a run event. Clean will insert rows with a time that will yield a duration that will equal the average duration of preceeding rows.
-- getweather.py: Gets weather data from open-metro and adds it to the target sheet.
+- getweather.py: Gets weather data from open-meteo and adds it to the target sheet.
 
 ## Features
 - Uses Selenium to scrape Looker Studio into the input Google Sheet
