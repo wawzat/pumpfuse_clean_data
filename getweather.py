@@ -106,17 +106,33 @@ def fetch_weather_data(start: datetime, end: datetime, latitude: float, longitud
         raise
 
 
-def get_sheet_data(ws: Worksheet, start_row: int) -> List[Dict[str, Any]]:
+def get_sheet_data(ws: Worksheet, start_row: int, end_row: int) -> List[Dict[str, Any]]:
     """
-    Get all records from the worksheet starting from the specified row (1-based).
+    Get records from the worksheet for a specific row range (inclusive).
     """
-    all_values = ws.get_all_values()
-    headers = all_values[0]
-    # Only skip header row, do not filter out empty rows at the end
-    data_rows = all_values[start_row-1:]
+    if start_row > end_row:
+        return []
+    # Get headers from the first row
+    headers = ws.row_values(1)
+    # Get data for the specified range. Assuming data is within columns A-Z.
+    # This is more efficient than getting all values.
+    data_range = f'A{start_row}:Z{end_row}'
+    try:
+        data_rows = ws.get(data_range, major_dimension='ROWS')
+    except gspread.exceptions.APIError as e:
+        logging.error(f"Gspread API error fetching range {data_range}: {e}")
+        # Handle case where range is out of bounds of sheet data
+        if "exceeds grid limits" in str(e):
+            # Attempt to get all remaining data from start_row
+            all_sheet_values = ws.get_all_values()
+            if start_row > len(all_sheet_values):
+                return []
+            data_rows = all_sheet_values[start_row-1:end_row]
+        else:
+            raise
+            
     # Pad rows to header length to avoid missing columns
     padded_rows = [row + [''] * (len(headers) - len(row)) for row in data_rows]
-    # Keep all rows, even if empty, so that the last row is always included
     records = [dict(zip(headers, row)) for row in padded_rows]
     return records
 
@@ -257,7 +273,7 @@ def main() -> None:
             logging.info(f"No new rows to process from start_row {start_row}.")
             return
         # Get records from start_row to last_valid_row (inclusive)
-        records = get_sheet_data(ws, start_row)[:last_valid_row - start_row + 1]
+        records = get_sheet_data(ws, start_row, last_valid_row)
         if not records:
             print("No new rows to process.")
             logging.info(f"No new rows to process from start_row {start_row}.")
