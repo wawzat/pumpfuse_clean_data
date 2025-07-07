@@ -3,6 +3,7 @@ getweather.py
 
 Fetches historical weather data (temperature, humidity, precipitation) from Open-Meteo for each row in the target Google Sheet,
 starting from a specified row or auto-detecting the next row to process if not specified. Weather data is matched to each timestamp by nearest hour and written back to the sheet.
+open-meteo only provides data up to the day before the current date.
 
 Usage:
     python getweather.py [--start-row N]
