@@ -127,14 +127,25 @@ def parse_timestamp(ts: str) -> Optional[datetime]:
         '%Y-%m-%d %H:%M:%S',
         '%Y-%m-%d %H:%M',
         '%b %d, %Y, %I:%M:%S %p',
-        '%b %d, %Y, %I:%M %p'
+        '%b %d, %Y, %I:%M %p',
+        '%Y-%m-%dT%H:%M:%S',  # ISO 8601 without timezone
+        '%Y-%m-%dT%H:%M'      # ISO 8601 without seconds
     ]
     for fmt in formats:
         try:
             return datetime.strptime(ts, fmt)
         except ValueError:
             continue
-    return None
+    # Try pandas to_datetime as a last resort
+    try:
+        dt = pd.to_datetime(ts, errors='raise')
+        if pd.isnull(dt):
+            return None
+        if isinstance(dt, pd.Timestamp):
+            return dt.to_pydatetime()
+        return dt
+    except Exception:
+        return None
 
 
 def ensure_weather_columns(ws: Worksheet, headers: List[str]) -> None:
@@ -203,44 +214,66 @@ def main() -> None:
         # Refresh headers in case columns were added
         headers = ws.get_all_values()[0]
 
-        # Determine start_row if not provided
+        # Determine start_row and end_row if not provided
         start_row = args.start_row
         if start_row is None:
-            # Find the last row with weather data in all three columns (E, F, G)
-            weather_cols_idx = [4, 5, 6]  # E, F, G (0-based)
-            last_weather_row = 1  # header is row 1
-            for idx, row in enumerate(all_values[1:], start=2):
-                if all(len(row) > col and row[col].strip() for col in weather_cols_idx):
-                    last_weather_row = idx
-            start_row = last_weather_row + 1
-            if start_row > len(all_values):
-                print("All rows already have weather data. Nothing to do.")
-                logging.info("No new rows to process; all rows have weather data.")
+            # Find the first row where D-F are all empty and B and C are not empty
+            # Stop at the first row where B and C are both empty
+            data_rows = all_values[1:]  # skip header
+            start_row_candidate = None
+            for idx, row in enumerate(data_rows, start=2):  # 1-based row numbers
+                # Pad row to at least 6 columns
+                padded = row + [''] * (6 - len(row))
+                b_val = padded[1].strip() if len(padded) > 1 else ''
+                c_val = padded[2].strip() if len(padded) > 2 else ''
+                d_val = padded[3].strip() if len(padded) > 3 else ''
+                e_val = padded[4].strip() if len(padded) > 4 else ''
+                f_val = padded[5].strip() if len(padded) > 5 else ''
+                # If B and C are both empty, stop searching
+                if not b_val and not c_val:
+                    break
+                # If D-F are all empty and B and C are not empty, this is the first row to process
+                if not d_val and not e_val and not f_val and b_val and c_val:
+                    start_row_candidate = idx
+                    break
+            if start_row_candidate is None:
+                print("No rows require weather data. Nothing to do.")
+                logging.info("No rows require weather data.")
                 return
+            start_row = start_row_candidate
 
-        records = get_sheet_data(ws, start_row)
-        # Remove trailing empty records (all fields empty)
-        def is_empty_record(rec: dict) -> bool:
-            return all((v is None or str(v).strip() == '') for v in rec.values())
-        # Only drop trailing empty records, not those in the middle
-        while records and is_empty_record(records[-1]):
-            records.pop()
+
+        # Determine the last row to process by finding the last row with a valid timestamp in column 'Timestamp'
+        data_rows = all_values[start_row-1:]
+        last_valid_row = None
+        for idx, row in enumerate(data_rows, start=start_row):
+            # Pad to at least 3 columns for timestamp
+            padded = row + [''] * (3 - len(row))
+            ts_val = padded[1].strip() if len(padded) > 1 else ''  # Column B is 'Timestamp'
+            if parse_timestamp(ts_val):
+                last_valid_row = idx
+        if last_valid_row is None or last_valid_row < start_row:
+            print("No new rows to process.")
+            logging.info(f"No new rows to process from start_row {start_row}.")
+            return
+        # Get records from start_row to last_valid_row (inclusive)
+        records = get_sheet_data(ws, start_row)[:last_valid_row - start_row + 1]
         if not records:
             print("No new rows to process.")
             logging.info(f"No new rows to process from start_row {start_row}.")
             return
+        # Gather all valid timestamps for weather data fetch range
         timestamps = [parse_timestamp(r.get('Timestamp', '')) for r in records]
-        timestamps = [t for t in timestamps if t is not None]
-        if not timestamps:
+        valid_timestamps = [t for t in timestamps if t is not None]
+        if not valid_timestamps:
             logging.error("No valid timestamps found in the specified rows.")
             print("No valid timestamps found.")
             return
 
-        start_dt = min(timestamps)
-        end_dt = max(timestamps)
+        start_dt = min(valid_timestamps)
+        end_dt = max(valid_timestamps)
         weather_df = fetch_weather_data(start_dt, end_dt, latitude, longitude)
 
-        # For each record, find the nearest hour in weather_df
         import math
         def clean_value(val):
             # Convert NaN, inf, -inf to None for Google Sheets compatibility
@@ -251,18 +284,23 @@ def main() -> None:
             return val
 
         weather_results = []
-        for r in records:
+        for idx, r in enumerate(records):
             ts = parse_timestamp(r.get('Timestamp', ''))
             if ts is None:
+                logging.info(f"Skipping row {start_row + idx}: unparseable timestamp '{r.get('Timestamp', '')}'")
                 weather_results.append({'Precipitation (in)': None, 'Temperature (F)': None, 'Humidity (%)': None})
                 continue
-            nearest = weather_df.index.get_indexer([ts], method='nearest')[0]
-            weather_row = weather_df.iloc[nearest]
-            weather_results.append({
-                'Precipitation (in)': clean_value(weather_row['Precipitation (in)']),
-                'Temperature (F)': clean_value(weather_row['Temperature (F)']),
-                'Humidity (%)': clean_value(weather_row['Humidity (%)'])
-            })
+            try:
+                nearest = weather_df.index.get_indexer([ts], method='nearest')[0]
+                weather_row = weather_df.iloc[nearest]
+                weather_results.append({
+                    'Precipitation (in)': clean_value(weather_row['Precipitation (in)']),
+                    'Temperature (F)': clean_value(weather_row['Temperature (F)']),
+                    'Humidity (%)': clean_value(weather_row['Humidity (%)'])
+                })
+            except Exception as e:
+                logging.error(f"Failed to match weather for row {start_row + idx}: {e}")
+                weather_results.append({'Precipitation (in)': None, 'Temperature (F)': None, 'Humidity (%)': None})
 
         update_sheet_with_weather(ws, start_row, weather_results, headers)
         print(f"Weather data added to rows {start_row} to {start_row + len(weather_results) - 1}.")
