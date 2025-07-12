@@ -11,10 +11,6 @@ This script:
 Configuration, credentials, and user-specific settings are managed via config.ini.
 """
 
-import sys
-import os
-import time
-import traceback
 import configparser
 import logging
 from typing import Optional
@@ -22,46 +18,23 @@ from datetime import datetime
 import gspread
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.edge.options import Options
-from selenium.webdriver.edge.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from selenium.webdriver.common.keys import Keys
 
-def delete_sheet_if_exists(config: configparser.ConfigParser) -> None:
-    """
-    Deletes the spreadsheet named by 'input_sheet_name' in config.ini if it exists in Google Sheets.
-
-    Args:
-        config (configparser.ConfigParser): Loaded configuration object.
-    """
-    try:
-        credentials_json = config["google"]["credentials_json"]
-        input_sheet_name = config["google"]["input_sheet_name"]
-        gc = gspread.service_account(filename=credentials_json)
-        # List all spreadsheets accessible to the service account
-        spreadsheets = gc.list_spreadsheet_files()
-        target_sheet = next((s for s in spreadsheets if s.get("name") == input_sheet_name), None)
-        if target_sheet:
-            gc.del_spreadsheet(target_sheet["id"])
-            logging.info(f"Deleted existing '{input_sheet_name}' spreadsheet from Google Sheets.")
-        else:
-            logging.info(f"No existing '{input_sheet_name}' spreadsheet found in Google Sheets.")
-    except Exception as e:
-        logging.error(f"Error checking/deleting '{config['google'].get('input_sheet_name', 'N/A')}' spreadsheet: {e}")
-
-def get_latest_datetime_from_sheet(config: configparser.ConfigParser) -> Optional[datetime]:
+def get_latest_datetime_from_sheet(config_path: str = "config.ini") -> Optional[datetime]:
     """
     Retrieves the latest datetime from the target Google Sheet specified in config.ini.
 
     Args:
-        config (configparser.ConfigParser): Loaded configuration object.
+        config_path (str): Path to the config.ini file.
 
     Returns:
         Optional[datetime]: The latest datetime found in the sheet, or None if not found.
     """
+    config = configparser.ConfigParser()
+    config.read(config_path)
     credentials_json = config["google"]["credentials_json"]
     target_sheet_name = config["google"]["target_sheet_name"]
 
@@ -178,6 +151,8 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
     Returns:
         bool: True if export was successful, False otherwise.
     """
+    from selenium.webdriver.common.action_chains import ActionChains
+    import time
     try:
         wait = WebDriverWait(driver, timeout)
         actions = ActionChains(driver)
@@ -253,18 +228,21 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
         logging.error(f"Error during export to Google Sheets: {e}")
         return False
 
-def share_google_sheet_with_service_account(driver: webdriver.Edge, config: configparser.ConfigParser, timeout: int = 30) -> bool:
+def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path: str = "config.ini", timeout: int = 30) -> bool:
     """
     Shares the currently open Google Sheet with the service account email and unchecks the 'Notify people' checkbox.
 
     Args:
         driver (webdriver.Edge): Selenium WebDriver instance with the sheet open.
-        config (configparser.ConfigParser): Loaded configuration object.
+        config_path (str): Path to the config.ini file.
         timeout (int): Maximum time to wait for elements (in seconds).
 
     Returns:
         bool: True if sharing was successful, False otherwise.
     """
+    import time
+    config = configparser.ConfigParser()
+    config.read(config_path)
     email = config.get('google', 'SERVICE_ACCOUNT_USER_EMAIL')
     wait = WebDriverWait(driver, timeout)
     try:
@@ -359,6 +337,7 @@ def switch_to_sheet_tab_by_title(driver: webdriver.Edge, sheet_title: str = "Pum
     Returns:
         bool: True if switched successfully, False otherwise.
     """
+    import time
     end_time = time.time() + timeout
     while time.time() < end_time:
         for handle in driver.window_handles:
@@ -371,199 +350,105 @@ def switch_to_sheet_tab_by_title(driver: webdriver.Edge, sheet_title: str = "Pum
         time.sleep(2)
     return False
 
-def get_edge_user_data_dir(windows_username: str) -> str:
-    """
-    Returns the Edge user data directory path for the given Windows username.
-
-    Args:
-        windows_username (str): The Windows username.
-
-    Returns:
-        str: The Edge user data directory path.
-    """
-    return fr"C:\\Users\\{windows_username}\\AppData\\Local\\Microsoft\\Edge\\User Data"
-
-
-def setup_logging() -> None:
-    """Configure logging for the application."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
-
-
-def load_config(config_path: str = "config.ini") -> configparser.ConfigParser:
-    """
-    Load and return the configuration from config.ini.
-    
-    Args:
-        config_path (str): Path to the config.ini file.
-        
-    Returns:
-        configparser.ConfigParser: Loaded configuration object.
-    """
+if __name__ == "__main__":
+    import argparse
+    import sys
     config = configparser.ConfigParser()
-    config.read(config_path)
-    return config
-
-
-def setup_webdriver(edge_user_data_dir: str) -> webdriver.Edge:
-    """
-    Set up and return a configured Edge WebDriver instance.
-    
-    Args:
-        edge_user_data_dir (str): Path to Edge user data directory.
-        
-    Returns:
-        webdriver.Edge: Configured WebDriver instance.
-    """
-    edge_options = Options()
-    edge_options.add_argument(fr"--user-data-dir={edge_user_data_dir}")
-    edge_options.add_argument("--profile-directory=Default")
-    # Redirect browser stderr to suppress GPU/Chromium errors
-    edge_service = Service(stderr=open(os.devnull, 'w'))
-    return webdriver.Edge(options=edge_options, service=edge_service)
-
-
-def suppress_shutdown_warnings() -> None:
-    """Suppress urllib3 and selenium warnings during shutdown."""
-    for noisy_logger in [
-        'urllib3.connectionpool',
-        'urllib3.util.retry',
-        'selenium.webdriver.remote.remote_connection',
-        'selenium.webdriver.remote.errorhandler',
-    ]:
-        logging.getLogger(noisy_logger).setLevel(logging.ERROR)
-
-
-def handle_driver_shutdown(driver: webdriver.Edge) -> None:
-    """
-    Handle graceful shutdown of WebDriver with error suppression.
-    
-    Args:
-        driver (webdriver.Edge): WebDriver instance to shut down.
-    """
-    try:
-        suppress_shutdown_warnings()
-        driver.quit()
-    except Exception as e:
-        # Suppress expected connection errors on shutdown
-        err_str = str(e)
-        if any(msg in err_str for msg in [
-            'ConnectionResetError',
-            'Failed to establish a new connection',
-            'actively refused',
-            'connection was forcibly closed',
-            'invalid session id',
-            'invalid after WaitForGetOffsetInRange',
-            'Retry(total=',
-            'NewConnectionError',
-            'MaxRetryError',
-            'HTTPConnection object',
-        ]):
-            logging.debug(f"Suppressed expected shutdown error: {e}")
-            logging.debug(traceback.format_exc())
-        else:
-            logging.error(f"Unexpected error during driver.quit(): {e}")
-            logging.debug(traceback.format_exc())
-
-
-def wait_for_user_shutdown(driver: webdriver.Edge) -> None:
-    """
-    Wait for user to manually close the browser and handle shutdown.
-    
-    Args:
-        driver (webdriver.Edge): WebDriver instance.
-    """
-    logging.info("Leaving Looker Studio page open for user inspection. Close the browser window manually when done.")
-    try:
-        while True:
-            input("Press Ctrl+C in this terminal to close the browser and exit the script...\n")
-    except KeyboardInterrupt:
-        logging.info("User requested shutdown. Closing browser.")
-        handle_driver_shutdown(driver)
-
-
-def run_looker_export_flow(config_path: str = "config.ini") -> None:
-    """
-    Main workflow for automating Looker Studio export and Google Sheets sharing.
-
-    Args:
-        config_path (str): Path to the config.ini file.
-    """
-    setup_logging()
-    
-    # Load configuration
-    config = load_config(config_path)
+    config.read("config.ini")
     looker_url = config["looker"]["report_url"]
     windows_username = config.get("windows", "username", fallback=None)
-    
     if not windows_username:
         logging.error("No Windows username found in config.ini under [windows] section.")
         sys.exit(1)
-    
-    edge_user_data_dir = get_edge_user_data_dir(windows_username)
-
-    # Delete the input sheet if it exists in Google Sheets
-    delete_sheet_if_exists(config)
+    edge_user_data_dir = fr"C:\\Users\\{windows_username}\\AppData\\Local\\Microsoft\\Edge\\User Data"
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
     # Get latest datetime from Google Sheet
-    latest_dt = get_latest_datetime_from_sheet(config)
+    latest_dt = get_latest_datetime_from_sheet()
     if not latest_dt:
         logging.error("Could not retrieve latest datetime from Google Sheet.")
         sys.exit(1)
-    
     start_day = latest_dt.day
     logging.info(f"Using start day from Google Sheet: {start_day}")
 
     driver: Optional[webdriver.Edge] = None
     try:
-        # Set up WebDriver and navigate to Looker
-        driver = setup_webdriver(edge_user_data_dir)
+        from selenium.webdriver.edge.options import Options
+        from selenium.webdriver.edge.service import Service
+        import os
+        import subprocess
+        edge_options = Options()
+        edge_options.add_argument(fr"--user-data-dir={edge_user_data_dir}")
+        edge_options.add_argument("--profile-directory=Default")  # Change if you use a different profile
+        # Redirect browser stderr to suppress GPU/Chromium errors
+        edge_service = Service(stderr=open(os.devnull, 'w'))
+        driver = webdriver.Edge(options=edge_options, service=edge_service)
         driver.get(looker_url)
         logging.info(f"Opened URL: {looker_url}")
 
-        # Wait for page to load
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.CLASS_NAME, "date-text"))
         )
 
-        # Execute the main workflow steps
-        if not select_looker_date_range(driver, start_day):
+        if select_looker_date_range(driver, start_day):
+            logging.info("Date selection completed successfully.")
+            if export_data_to_google_sheets(driver):
+                logging.info("Export to Google Sheets completed successfully.")
+                # Switch to the tab with the correct sheet title and share it
+                if switch_to_sheet_tab_by_title(driver, sheet_title="PumpFuse_new"):
+                    logging.info("Switched to Google Sheet tab for sharing.")
+                    if wait_for_google_sheet_ready(driver, timeout=60):
+                        share_google_sheet_with_service_account(driver)
+                    else:
+                        logging.error("Google Sheet did not load in time for sharing.")
+                else:
+                    logging.warning("Google Sheet tab not found for sharing.")
+            else:
+                logging.error("Export to Google Sheets failed.")
+        else:
             logging.error("Date selection failed.")
-            return
-
-        logging.info("Date selection completed successfully.")
-
-        if not export_data_to_google_sheets(driver):
-            logging.error("Export to Google Sheets failed.")
-            return
-
-        logging.info("Export to Google Sheets completed successfully.")
-
-        # Switch to the exported Google Sheet tab and share it
-        if not switch_to_sheet_tab_by_title(driver, sheet_title="PumpFuse_new"):
-            logging.warning("Google Sheet tab not found for sharing.")
-            return
-
-        logging.info("Switched to Google Sheet tab for sharing.")
-
-        if not wait_for_google_sheet_ready(driver, timeout=60):
-            logging.error("Google Sheet did not load in time for sharing.")
-            return
-
-        if not share_google_sheet_with_service_account(driver, config):
-            logging.error("Failed to share Google Sheet.")
-            return
-
-        logging.info("Google Sheet sharing completed successfully.")
 
     except KeyboardInterrupt:
         logging.info("Script interrupted by user.")
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
-        logging.debug(traceback.format_exc())
     finally:
         if driver:
-            wait_for_user_shutdown(driver)
-
-
-if __name__ == "__main__":
-    run_looker_export_flow()
+            logging.info("Leaving Looker Studio page open for user inspection. Close the browser window manually when done.")
+            try:
+                while True:
+                    input("Press Ctrl+C in this terminal to close the browser and exit the script...\n")
+            except KeyboardInterrupt:
+                logging.info("User requested shutdown. Closing browser.")
+                try:
+                    # Suppress urllib3 and selenium warnings during shutdown
+                    import logging as pylogging
+                    for noisy_logger in [
+                        'urllib3.connectionpool',
+                        'urllib3.util.retry',
+                        'selenium.webdriver.remote.remote_connection',
+                        'selenium.webdriver.remote.errorhandler',
+                    ]:
+                        pylogging.getLogger(noisy_logger).setLevel(pylogging.ERROR)
+                    driver.quit()
+                except Exception as e:
+                    import traceback
+                    # Suppress expected connection errors on shutdown (e.g., ConnectionResetError, urllib3 warnings)
+                    err_str = str(e)
+                    if any(msg in err_str for msg in [
+                        'ConnectionResetError',
+                        'Failed to establish a new connection',
+                        'actively refused',
+                        'connection was forcibly closed',
+                        'invalid session id',
+                        'invalid after WaitForGetOffsetInRange',
+                        'Retry(total=',
+                        'NewConnectionError',
+                        'MaxRetryError',
+                        'HTTPConnection object',
+                    ]):
+                        logging.debug(f"Suppressed expected shutdown error: {e}")
+                        logging.debug(traceback.format_exc())
+                    else:
+                        logging.error(f"Unexpected error during driver.quit(): {e}")
+                        logging.debug(traceback.format_exc())
