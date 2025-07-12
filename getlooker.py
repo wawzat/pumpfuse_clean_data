@@ -23,6 +23,28 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.common.keys import Keys
 
+def delete_sheet_if_exists(config: configparser.ConfigParser) -> None:
+    """
+    Deletes the spreadsheet named by 'input_sheet_name' in config.ini if it exists in Google Sheets.
+
+    Args:
+        config (configparser.ConfigParser): Loaded configuration object.
+    """
+    try:
+        credentials_json = config["google"]["credentials_json"]
+        input_sheet_name = config["google"]["input_sheet_name"]
+        gc = gspread.service_account(filename=credentials_json)
+        # List all spreadsheets accessible to the service account
+        spreadsheets = gc.list_spreadsheet_files()
+        target_sheet = next((s for s in spreadsheets if s.get("name") == input_sheet_name), None)
+        if target_sheet:
+            gc.del_spreadsheet(target_sheet["id"])
+            logging.info(f"Deleted existing '{input_sheet_name}' spreadsheet from Google Sheets.")
+        else:
+            logging.info(f"No existing '{input_sheet_name}' spreadsheet found in Google Sheets.")
+    except Exception as e:
+        logging.error(f"Error checking/deleting '{config['google'].get('input_sheet_name', 'N/A')}' spreadsheet: {e}")
+
 def get_latest_datetime_from_sheet(config_path: str = "config.ini") -> Optional[datetime]:
     """
     Retrieves the latest datetime from the target Google Sheet specified in config.ini.
@@ -362,6 +384,9 @@ if __name__ == "__main__":
         sys.exit(1)
     edge_user_data_dir = fr"C:\\Users\\{windows_username}\\AppData\\Local\\Microsoft\\Edge\\User Data"
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
+
+    # Delete the input sheet if it exists in Google Sheets
+    delete_sheet_if_exists(config)
 
     # Get latest datetime from Google Sheet
     latest_dt = get_latest_datetime_from_sheet()
