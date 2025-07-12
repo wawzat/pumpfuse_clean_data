@@ -223,17 +223,6 @@ def main() -> None:
 
         client = get_gspread_client(credentials_path)
         sh = client.open(target_sheet_name)
-
-        # Check for and delete 'PumpFuse_new' worksheet if it exists
-        try:
-            pf_ws = sh.worksheet('PumpFuse_new')
-            sh.del_worksheet(pf_ws)
-            logging.info("Deleted existing worksheet 'PumpFuse_new'.")
-        except gspread.exceptions.WorksheetNotFound:
-            logging.info("Worksheet 'PumpFuse_new' does not exist, nothing to delete.")
-        except Exception as e:
-            logging.error(f"Error checking/deleting 'PumpFuse_new': {e}")
-
         ws = sh.worksheet('Data')
 
         all_values = ws.get_all_values()
