@@ -1,3 +1,4 @@
 config.ini
 clean_errors.log
 .clean_errors.log.swp
+__pycache__/getlooker.cpython-313.pyc
