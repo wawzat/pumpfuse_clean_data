@@ -89,6 +89,7 @@ def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | No
         rows_added = 0
         write_ops = 0
         pbar_total = total_writes if total_writes is not None else (total_rows - start_row)
+        import statistics
         with tqdm(total=pbar_total, desc="Processing writes", unit=" writes") as pbar:
             while row < len(data):
                 prev_deltas = []
@@ -100,7 +101,11 @@ def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | No
                 if len(prev_deltas) < DELTA_AVG_WINDOW:
                     row += 1
                     continue
-                avg_delta = sum(prev_deltas) / DELTA_AVG_WINDOW
+                try:
+                    avg_delta = statistics.mean(prev_deltas)
+                except statistics.StatisticsError:
+                    row += 1
+                    continue
                 curr_delta = get_float(data[row][2])
                 if curr_delta is None:
                     row += 1
@@ -152,6 +157,7 @@ def estimate_rows_to_insert(data: list[list[Any]], start_row: int) -> Tuple[int,
     row = start_row
     rows_to_insert = 0
     update_ops = 0
+    import statistics
     while row < len(data):
         prev_deltas = []
         for i in range(row - DELTA_AVG_WINDOW, row):
@@ -162,7 +168,11 @@ def estimate_rows_to_insert(data: list[list[Any]], start_row: int) -> Tuple[int,
         if len(prev_deltas) < DELTA_AVG_WINDOW:
             row += 1
             continue
-        avg_delta = sum(prev_deltas) / DELTA_AVG_WINDOW
+        try:
+            avg_delta = statistics.mean(prev_deltas)
+        except statistics.StatisticsError:
+            row += 1
+            continue
         curr_delta = get_float(data[row][2])
         if curr_delta is None:
             row += 1
