@@ -24,7 +24,7 @@ from typing import Any, Dict, Tuple
 
 CLEANED_MARK = 'cleaned'
 DELTA_AVG_WINDOW = 5
-DELTA_TOLERANCE = 0.2  # 20% tolerance for delta comparison
+DELTA_TOLERANCE = 0.25  # 20% tolerance for delta comparison
 
 # Set up logging to a file
 logging.basicConfig(filename='clean_errors.log', level=logging.ERROR, 
