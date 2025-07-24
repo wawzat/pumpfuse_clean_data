@@ -25,7 +25,57 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 from selenium.webdriver.common.keys import Keys
 
 
+
 os.environ["SE_EDGE_MIRROR_URL"] = "https://msedgedriver.microsoft.com"
+
+def check_edge_webdriver_compatibility(edge_path: str = None, driver_path: str = None) -> bool:
+    """
+    Checks if the installed MS Edge WebDriver version matches the installed Edge browser version.
+    Args:
+        edge_path (str): Path to msedge.exe. If None, tries default Windows location.
+        driver_path (str): Path to msedgedriver.exe. If None, tries default location in PATH.
+    Returns:
+        bool: True if compatible, False otherwise.
+    """
+    import subprocess
+    import re
+    import shutil
+    # Find Edge browser version
+    if edge_path is None:
+        edge_path = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+        if not os.path.exists(edge_path):
+            edge_path = r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"
+    edge_version = None
+    try:
+        result = subprocess.run([edge_path, "--version"], capture_output=True, text=True)
+        match = re.search(r"([\d]+\.[\d]+\.[\d]+\.[\d]+)", result.stdout)
+        if match:
+            edge_version = match.group(1)
+    except Exception:
+        pass
+    # Find Edge WebDriver version
+    if driver_path is None:
+        driver_path = shutil.which("msedgedriver")
+    driver_version = None
+    try:
+        result = subprocess.run([driver_path, "--version"], capture_output=True, text=True)
+        match = re.search(r"([\d]+\.[\d]+\.[\d]+\.[\d]+)", result.stdout)
+        if match:
+            driver_version = match.group(1)
+    except Exception:
+        pass
+    # Compare major/minor version
+    if edge_version and driver_version:
+        edge_major = edge_version.split(".")[0]
+        driver_major = driver_version.split(".")[0]
+        if edge_major == driver_major:
+            return True
+        else:
+            logging.error(f"Edge browser version ({edge_version}) and WebDriver version ({driver_version}) do not match.")
+            return False
+    else:
+        logging.warning("Could not determine Edge or WebDriver version.")
+        return False
 
 def get_latest_datetime_from_sheet(config_path: str = "config.ini") -> Optional[datetime]:
     """
@@ -379,11 +429,14 @@ if __name__ == "__main__":
     try:
         from selenium.webdriver.edge.options import Options
         from selenium.webdriver.edge.service import Service
-        import os
         import subprocess
         edge_options = Options()
         edge_options.add_argument(fr"--user-data-dir={edge_user_data_dir}")
         edge_options.add_argument("--profile-directory=Default")  # Change if you use a different profile
+        # Check Edge WebDriver compatibility before launching
+        if not check_edge_webdriver_compatibility():
+            logging.error("Edge WebDriver and browser versions are incompatible. Please update msedgedriver to match your Edge browser version.")
+            sys.exit(1)
         # Redirect browser stderr to suppress GPU/Chromium errors
         edge_service = Service(stderr=open(os.devnull, 'w'))
         driver = webdriver.Edge(options=edge_options, service=edge_service)
