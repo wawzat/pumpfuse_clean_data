@@ -84,24 +84,17 @@ def get_float(val: Any) -> float | None:
 
 import statistics
 
-
-def detect_outlier(curr_delta: float, prev_deltas: list[float], tolerance: float = DYNAMIC_TOLERANCE) -> int | None:
+def is_missed_event(curr_delta: float, avg_delta: float, tolerance: float = DYNAMIC_TOLERANCE) -> int | None:
     """
-    Detect if curr_delta is an outlier due to missed events.
-    Returns number of missed events (2 or 3) or None.
-    Uses median for robust averaging.
-    Logs generic outliers for manual review.
+    Detect if the current delta is likely due to missed events.
+    Returns the number of missed events (2 or 3) or None.
     """
-    if not prev_deltas:
+    if avg_delta == 0:
         return None
-    median_delta = statistics.median(prev_deltas)
-    ratio = curr_delta / median_delta
+    ratio = curr_delta / avg_delta
     for missed in [2, 3]:
         if abs(ratio - missed) < tolerance:
             return missed
-    # If not close to 2 or 3, but much larger than median, flag as generic outlier
-    if ratio > 1.5 + tolerance:
-        logging.warning(f"Possible outlier detected: delta={curr_delta}, median={median_delta}, ratio={ratio:.2f}")
     return None
 
 def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | None = None) -> int:
@@ -123,16 +116,20 @@ def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | No
                 if len(prev_deltas) < DELTA_AVG_WINDOW:
                     row += 1
                     continue
+                try:
+                    avg_delta = statistics.mean(prev_deltas)
+                except statistics.StatisticsError:
+                    row += 1
+                    continue
                 curr_delta = get_float(data[row][2])
                 if curr_delta is None:
                     row += 1
                     continue
-                missed_events = detect_outlier(curr_delta, prev_deltas)
-                median_delta = statistics.median(prev_deltas) if prev_deltas else None
-                if missed_events and median_delta is not None:
+                missed_events = is_missed_event(curr_delta, avg_delta)
+                if missed_events:
                     prev_ts = parse_timestamp(data[row - 1][1])
                     for n in range(1, missed_events):
-                        new_ts = prev_ts + timedelta(hours=median_delta * n)
+                        new_ts = prev_ts + timedelta(hours=avg_delta * n)
                         insert_row_index = row + n
                         insert_row = [
                             '',
@@ -184,11 +181,16 @@ def estimate_rows_to_insert(data: list[list[Any]], start_row: int) -> Tuple[int,
         if len(prev_deltas) < DELTA_AVG_WINDOW:
             row += 1
             continue
+        try:
+            avg_delta = statistics.mean(prev_deltas)
+        except statistics.StatisticsError:
+            row += 1
+            continue
         curr_delta = get_float(data[row][2])
         if curr_delta is None:
             row += 1
             continue
-        missed_events = detect_outlier(curr_delta, prev_deltas)
+        missed_events = is_missed_event(curr_delta, avg_delta)
         if missed_events:
             rows_to_insert += missed_events - 1
             update_ops += 1  # for the delta formula update
