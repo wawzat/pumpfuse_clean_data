@@ -11,6 +11,7 @@ This script:
 Configuration, credentials, and user-specific settings are managed via config.ini.
 """
 
+import os
 import configparser
 import logging
 from typing import Optional
@@ -22,6 +23,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.common.keys import Keys
+
+
+os.environ["SE_EDGE_MIRROR_URL"] = "https://msedgedriver.microsoft.com"
 
 def get_latest_datetime_from_sheet(config_path: str = "config.ini") -> Optional[datetime]:
     """
