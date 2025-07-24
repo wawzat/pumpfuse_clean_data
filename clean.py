@@ -22,9 +22,10 @@ from tqdm import tqdm
 import logging
 from typing import Any, Dict, Tuple
 
+
 CLEANED_MARK = 'cleaned'
-DELTA_AVG_WINDOW = 5
-DELTA_TOLERANCE = 0.25  # 20% tolerance for delta comparison
+DELTA_AVG_WINDOW = 5  # Use a larger window for more robust mean
+DYNAMIC_TOLERANCE = 0.15  # 15% tolerance for ratio matching
 
 # Set up logging to a file
 logging.basicConfig(filename='clean_errors.log', level=logging.ERROR, 
@@ -80,6 +81,22 @@ def get_float(val: Any) -> float | None:
     except (TypeError, ValueError):
         return None
 
+
+import statistics
+
+def is_missed_event(curr_delta: float, avg_delta: float, tolerance: float = DYNAMIC_TOLERANCE) -> int | None:
+    """
+    Detect if the current delta is likely due to missed events.
+    Returns the number of missed events (2 or 3) or None.
+    """
+    if avg_delta == 0:
+        return None
+    ratio = curr_delta / avg_delta
+    for missed in [2, 3]:
+        if abs(ratio - missed) < tolerance:
+            return missed
+    return None
+
 def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | None = None) -> int:
     """Clean the Google Sheet by interpolating missing rows and updating delta formulas."""
     try:
@@ -89,15 +106,13 @@ def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | No
         rows_added = 0
         write_ops = 0
         pbar_total = total_writes if total_writes is not None else (total_rows - start_row)
-        import statistics
         with tqdm(total=pbar_total, desc="Processing writes", unit=" writes") as pbar:
             while row < len(data):
                 prev_deltas = []
-                for i in range(row - DELTA_AVG_WINDOW, row):
-                    if i > 1:
-                        delta = get_float(data[i][2])
-                        if delta is not None:
-                            prev_deltas.append(delta)
+                for i in range(max(2, row - DELTA_AVG_WINDOW), row):
+                    delta = get_float(data[i][2])
+                    if delta is not None:
+                        prev_deltas.append(delta)
                 if len(prev_deltas) < DELTA_AVG_WINDOW:
                     row += 1
                     continue
@@ -110,13 +125,12 @@ def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | No
                 if curr_delta is None:
                     row += 1
                     continue
-                n_missing = round(curr_delta / avg_delta)
-                if n_missing > 1 and abs(curr_delta - n_missing * avg_delta) < DELTA_TOLERANCE * avg_delta * n_missing:
+                missed_events = is_missed_event(curr_delta, avg_delta)
+                if missed_events:
                     prev_ts = parse_timestamp(data[row - 1][1])
-                    for n in range(1, n_missing):
+                    for n in range(1, missed_events):
                         new_ts = prev_ts + timedelta(hours=avg_delta * n)
                         insert_row_index = row + n
-                        # Insert CLEANED_MARK in column G (index 7)
                         insert_row = [
                             '',
                             format_timestamp(new_ts),
@@ -133,17 +147,17 @@ def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | No
                         rows_added += 1
                         write_ops += 1
                         pbar.update(1)
-                    updated_delta_formula = f'=IF(ISDATE(B{row + n_missing}),ROUND((B{row + n_missing}-B{row + n_missing - 1})*24,2),)'
+                    updated_delta_formula = f'=IF(ISDATE(B{row + missed_events}),ROUND((B{row + missed_events}-B{row + missed_events - 1})*24,2),)'
                     try:
-                        sheet.update_cell(row + n_missing, 3, updated_delta_formula)
+                        sheet.update_cell(row + missed_events, 3, updated_delta_formula)
                     except Exception as e:
-                        logging.error(f"Error updating delta formula at row {row + n_missing}: {e}")
-                        print(f"Error updating delta formula at row {row + n_missing}. See clean_errors.log for details.")
+                        logging.error(f"Error updating delta formula at row {row + missed_events}: {e}")
+                        print(f"Error updating delta formula at row {row + missed_events}. See clean_errors.log for details.")
                     time.sleep(1.2)
                     write_ops += 1
                     pbar.update(1)
                     data = sheet.get_all_values()
-                    row += n_missing
+                    row += missed_events
                 else:
                     row += 1
         return rows_added
@@ -152,19 +166,18 @@ def clean_sheet(sheet: gspread.Worksheet, start_row: int, total_writes: int | No
         print('An error occurred during cleaning. See clean_errors.log for details.')
         return 0
 
+
 def estimate_rows_to_insert(data: list[list[Any]], start_row: int) -> Tuple[int, int]:
     """Preprocess the data to estimate how many rows will be inserted during cleaning."""
     row = start_row
     rows_to_insert = 0
     update_ops = 0
-    import statistics
     while row < len(data):
         prev_deltas = []
-        for i in range(row - DELTA_AVG_WINDOW, row):
-            if i > 1:
-                delta = get_float(data[i][2])
-                if delta is not None:
-                    prev_deltas.append(delta)
+        for i in range(max(2, row - DELTA_AVG_WINDOW), row):
+            delta = get_float(data[i][2])
+            if delta is not None:
+                prev_deltas.append(delta)
         if len(prev_deltas) < DELTA_AVG_WINDOW:
             row += 1
             continue
@@ -177,11 +190,11 @@ def estimate_rows_to_insert(data: list[list[Any]], start_row: int) -> Tuple[int,
         if curr_delta is None:
             row += 1
             continue
-        n_missing = round(curr_delta / avg_delta)
-        if n_missing > 1 and abs(curr_delta - n_missing * avg_delta) < DELTA_TOLERANCE * avg_delta * n_missing:
-            rows_to_insert += n_missing - 1
+        missed_events = is_missed_event(curr_delta, avg_delta)
+        if missed_events:
+            rows_to_insert += missed_events - 1
             update_ops += 1  # for the delta formula update
-            row += n_missing
+            row += missed_events
         else:
             row += 1
     return rows_to_insert, update_ops
