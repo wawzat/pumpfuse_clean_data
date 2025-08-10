@@ -106,6 +106,36 @@ def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: in
         )
         logging.info("Calendar popup is visible.")
 
+        # Determine if the start date is in the previous month
+        # Get the currently displayed month and year from the calendar header
+        header_xpath = "//div[contains(@class, 'mat-calendar-header')]//button[contains(@class, 'mat-calendar-period-button')]/span"
+        header_elem = wait.until(EC.visibility_of_element_located((By.XPATH, header_xpath)))
+        displayed_month_year = header_elem.text.strip()
+        # Parse displayed month and year
+        from datetime import datetime
+        try:
+            displayed_month_dt = datetime.strptime(displayed_month_year, "%b %Y")
+        except ValueError:
+            logging.warning(f"Could not parse calendar header: {displayed_month_year}")
+            displayed_month_dt = datetime.now()
+
+        # Get today's date and calculate previous month
+        today = datetime.today()
+        prev_month = today.month - 1 if today.month > 1 else 12
+        prev_year = today.year if today.month > 1 else today.year - 1
+
+        # If the start_day is greater than today.day, assume previous month
+        if start_day > today.day:
+            # If displayed month is not previous month, click previous month button
+            if displayed_month_dt.month != prev_month or displayed_month_dt.year != prev_year:
+                try:
+                    prev_btn_xpath = "//button[contains(@class, 'mat-calendar-previous-button') and @aria-label='Previous month']"
+                    prev_btn = wait.until(EC.element_to_be_clickable((By.XPATH, prev_btn_xpath)))
+                    prev_btn.click()
+                    logging.info("Clicked previous month button.")
+                except TimeoutException:
+                    logging.warning("Previous month button not found or not clickable.")
+
         # Find the start date cell by its text (day of month)
         day_xpath = f"//span[contains(@class, 'mat-calendar-body-cell-content') and normalize-space(text())='{start_day}']"
         start_date_cell = wait.until(
