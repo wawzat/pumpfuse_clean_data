@@ -371,6 +371,8 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
                 if notify_checkbox.is_selected():
                     notify_checkbox.click()
                     logging.info("Unchecked Notify people checkbox.")
+                    # Wait for button to change from Send to Share after unchecking
+                    time.sleep(1)
                 else:
                     logging.info("Notify people checkbox already unchecked.")
             else:
@@ -378,28 +380,36 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         except Exception as e:
             logging.warning(f"Could not interact with Notify people checkbox: {e}")
         
-        # Click the Send button (updated from Share)
+        # Click the Share or Send button (Share appears after unchecking notify, Send if notify is checked)
         try:
-            send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Send']]")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
-            send_button.click()
-            logging.info("Clicked Send button in notification dialog.")
+            # First try Share button (appears when notify is unchecked)
+            share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Share']]")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
+            share_button.click()
+            logging.info("Clicked Share button in notification dialog.")
         except TimeoutException:
-            # Fallback to other possible button texts
+            # Fallback to Send button or other variations
             try:
-                send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Send')]")))
+                send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Send']]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
                 send_button.click()
-                logging.info("Clicked Send button (fallback selector) in notification dialog.")
-            except Exception as e:
-                logging.error(f"Could not find Send button: {e}")
-                # Take screenshot for debugging
+                logging.info("Clicked Send button in notification dialog.")
+            except TimeoutException:
+                # Last fallback using contains
                 try:
-                    driver.save_screenshot("share_dialog_error.png")
-                    logging.info("Screenshot saved as share_dialog_error.png for debugging.")
-                except Exception:
-                    pass
-                return False
+                    button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Share') or contains(., 'Send')]")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", button)
+                    button.click()
+                    logging.info("Clicked Share/Send button (fallback selector) in notification dialog.")
+                except Exception as e:
+                    logging.error(f"Could not find Share or Send button: {e}")
+                    # Take screenshot for debugging
+                    try:
+                        driver.save_screenshot("share_dialog_error.png")
+                        logging.info("Screenshot saved as share_dialog_error.png for debugging.")
+                    except Exception:
+                        pass
+                    return False
         
         # Wait for dialog to close
         wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[contains(@aria-label, 'Add people, groups, spaces, and calendar events')]")))
