@@ -325,7 +325,7 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         for iframe in iframes:
             try:
                 driver.switch_to.frame(iframe)
-                if driver.find_elements(By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']"):
+                if driver.find_elements(By.XPATH, "//input[contains(@aria-label, 'Add people, groups')]"):
                     logging.info("Switched to share dialog iframe.")
                     break
                 driver.switch_to.default_content()
@@ -334,41 +334,86 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         else:
             driver.switch_to.default_content()
 
-        email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']")))
+        # Updated aria-label to match actual text
+        email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@aria-label, 'Add people, groups, spaces, and calendar events')]")))
         driver.execute_script("arguments[0].scrollIntoView(true);", email_input)
         email_input.clear()
         email_input.send_keys(email)
         logging.info(f"Entered email: {email}")
         time.sleep(1)
         email_input.send_keys(Keys.ENTER)
-        time.sleep(1)
+        logging.info("Pressed Enter to confirm email selection.")
+        
+        # Wait for the notification dialog to appear
+        time.sleep(2)
+        
+        # Try to find and uncheck the 'Notify people' checkbox
         try:
-            notify_checkbox = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@type='checkbox' and @name='notify']")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", notify_checkbox)
-            if notify_checkbox.is_selected():
-                notify_checkbox.click()
-                logging.info("Unchecked Notify people checkbox.")
+            # Try multiple possible selectors for the notify checkbox
+            notify_checkbox = None
+            checkbox_selectors = [
+                "//input[@type='checkbox' and @name='notify']",
+                "//input[@type='checkbox' and contains(@aria-label, 'Notify')]",
+                "//span[contains(text(), 'Notify people')]/ancestor::div[contains(@class, 'checkbox')]//input[@type='checkbox']",
+                "//div[contains(text(), 'Notify people')]/preceding::input[@type='checkbox'][1]"
+            ]
+            
+            for selector in checkbox_selectors:
+                try:
+                    notify_checkbox = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
+                    logging.info(f"Found Notify people checkbox using selector: {selector}")
+                    break
+                except TimeoutException:
+                    continue
+            
+            if notify_checkbox:
+                driver.execute_script("arguments[0].scrollIntoView(true);", notify_checkbox)
+                if notify_checkbox.is_selected():
+                    notify_checkbox.click()
+                    logging.info("Unchecked Notify people checkbox.")
+                else:
+                    logging.info("Notify people checkbox already unchecked.")
             else:
-                logging.info("Notify people checkbox already unchecked.")
-        except TimeoutException:
-            logging.info("Notify people checkbox not found or already unchecked.")
-        # Click the Share or Send button (try Share first, then fallback to Send)
+                logging.warning("Notify people checkbox not found with any selector.")
+        except Exception as e:
+            logging.warning(f"Could not interact with Notify people checkbox: {e}")
+        
+        # Click the Send button (updated from Share)
         try:
-            share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Share']]")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
-            share_button.click()
-            logging.info("Clicked Share button in dialog.")
-        except Exception:
-            send_btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[contains(text(),'Send')]]")))
-            driver.execute_script("arguments[0].scrollIntoView(true);", send_btn)
-            send_btn.click()
-            logging.info("Clicked Send button in dialog.")
-        wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[@aria-label='Add people, groups, and calendar events']")))
+            send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Send']]")))
+            driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
+            send_button.click()
+            logging.info("Clicked Send button in notification dialog.")
+        except TimeoutException:
+            # Fallback to other possible button texts
+            try:
+                send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Send')]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
+                send_button.click()
+                logging.info("Clicked Send button (fallback selector) in notification dialog.")
+            except Exception as e:
+                logging.error(f"Could not find Send button: {e}")
+                # Take screenshot for debugging
+                try:
+                    driver.save_screenshot("share_dialog_error.png")
+                    logging.info("Screenshot saved as share_dialog_error.png for debugging.")
+                except Exception:
+                    pass
+                return False
+        
+        # Wait for dialog to close
+        wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[contains(@aria-label, 'Add people, groups, spaces, and calendar events')]")))
         logging.info(f"Shared Google Sheet with {email} (notify people unchecked).")
         driver.switch_to.default_content()
         return True
     except Exception as e:
         logging.error(f"Failed to share Google Sheet: {e}")
+        # Take screenshot for debugging
+        try:
+            driver.save_screenshot("share_error.png")
+            logging.info("Screenshot saved as share_error.png for debugging.")
+        except Exception:
+            pass
         driver.switch_to.default_content()
         return False
 
