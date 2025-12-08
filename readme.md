@@ -70,6 +70,7 @@ username = your_windows_username
 
 ### 6. Get and Prepare the Data
 - activate the virtual environment: .\.venv\Scripts\activate
+- Ensure no Microsoft Edge windows are open
 - Run getlooker.py to get the data from Looker Studio to Google Sheets
 - Run .\import.py
 - import.py will print the latest date and Sheet row number to the terminal
