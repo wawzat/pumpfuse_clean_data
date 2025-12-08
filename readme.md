@@ -39,7 +39,14 @@ python -m pip install -r requirements.txt
 - Download the credentials JSON file
 - Place the credentials file path in `config.ini` (see below)
 
-### 4. Configure `config.ini`
+
+### 4. "Install" the Microsoft Edge Web Driver
+- Download the [Microsoft Edge WebDriver](https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/?form=MA13LH) for your platform
+- Extract the downloaded driver to a folder like c:\Tools\EdgeDriver
+- Add this folder to your Path environment variable (Settings / Advanced system settings / Environment Variables)
+- Reboot
+
+### 5. Configure `config.ini`
 
 Example `config.ini`:
 ```
@@ -61,7 +68,7 @@ report_url = https://lookerstudio.google.com/your-looker-report-url
 username = your_windows_username
 ```
 
-### 5. Get and Prepare the Data
+### 6. Get and Prepare the Data
 - activate the virtual environment: .\.venv\Scripts\activate
 - Run getlooker.py to get the data from Looker Studio to Google Sheets
 - Run .\import.py
@@ -72,7 +79,7 @@ username = your_windows_username
 - Run .\getweather.py
 - Delete the PumpFuse_new Google Sheet.
 
-### 5b. Legacy Instructions for Getting and Preparing the Data without using getlooker.py
+### 6b. Legacy Instructions for Getting and Preparing the Data without using getlooker.py
 - activate the virtual environment: .\.venv\Scripts\activate
 - Run Python .\getdate.py to get the latest date from the target spreadsheet
 - Go to the Looker Studio View
@@ -90,7 +97,7 @@ username = your_windows_username
 - Run .\getweather.py
 - Delete the PumpFuse_new Google Sheet.
 
-### 5c. Legacy Instructions for Manually Getting and Preparing the Data
+### 6c. Legacy Instructions for Manually Getting and Preparing the Data
 - Check sump_pump_run_times for the last date entered
 - Go to the Looker Studio View
 - Change the start date to the day of the last date entered
