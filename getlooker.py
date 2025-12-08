@@ -169,7 +169,7 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
     Steps:
     1. Wait for the first data row to appear (after date selection).
     2. Right-click the first data row to open the context menu.
-    3. Click the Export option.
+    3. Click the Export data option.
     4. Change the export name to 'PumpFuse_new'.
     5. Select the Google Sheets radio button.
     6. Click the Export button.
@@ -193,17 +193,48 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
         data_element = wait.until(
             EC.presence_of_element_located((By.CSS_SELECTOR, data_selector))
         )
-        time.sleep(1)  # Small buffer to ensure table is interactive
+        # Wait for the element to be visible and interactable
+        time.sleep(2)  # Increased buffer to ensure table is fully loaded
+        
+        # Scroll the element into view before right-clicking
+        driver.execute_script("arguments[0].scrollIntoView(true);", data_element)
+        time.sleep(1)
+        
         actions.context_click(data_element).perform()
         logging.info("Right-clicked first data row to open context menu.")
+        
+        # Add explicit wait for context menu to appear
+        time.sleep(1)
 
-        # 2. Click the Export option in the context menu (by data-test-id)
-        export_option_xpath = "//button[@data-test-id='Export']"
-        export_option = wait.until(
-            EC.element_to_be_clickable((By.XPATH, export_option_xpath))
-        )
+        # 2. Click the Export data option in the context menu
+        # Try multiple approaches to find the Export data option
+        export_option = None
+        try:
+            # First attempt: data-test-id with "Export data"
+            export_option_xpath = "//button[@data-test-id='Export data']"
+            export_option = wait.until(
+                EC.element_to_be_clickable((By.XPATH, export_option_xpath))
+            )
+        except TimeoutException:
+            logging.info("Export data option not found by data-test-id, trying text content...")
+            try:
+                # Second attempt: text content with "Export data"
+                export_option_xpath = "//button[contains(., 'Export data')]"
+                export_option = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, export_option_xpath))
+                )
+            except TimeoutException:
+                logging.error("Export data option not found in context menu. Menu may not have appeared.")
+                # Take a screenshot for debugging
+                try:
+                    driver.save_screenshot("context_menu_error.png")
+                    logging.info("Screenshot saved as context_menu_error.png for debugging.")
+                except Exception:
+                    pass
+                return False
+        
         export_option.click()
-        logging.info("Clicked Export option in context menu.")
+        logging.info("Clicked Export data option in context menu.")
 
         # 3. Change the export name to 'PumpFuse_new' using the export-name-field class
         name_input_css = "input.export-name-field"
@@ -256,6 +287,12 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
         return True
     except Exception as e:
         logging.error(f"Error during export to Google Sheets: {e}")
+        # Take a screenshot for debugging
+        try:
+            driver.save_screenshot("export_error.png")
+            logging.info("Screenshot saved as export_error.png for debugging.")
+        except Exception:
+            pass
         return False
 
 def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path: str = "config.ini", timeout: int = 30) -> bool:
