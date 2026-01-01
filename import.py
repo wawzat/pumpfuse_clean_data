@@ -65,68 +65,44 @@ def get_gspread_client(credentials_path: str) -> gspread.Client:
     return gspread.authorize(creds)
 
 
-def format_timestamps(time_str: str) -> Optional[str]:
-    """Format a time string, rounding to nearest minute, formatted as 'YYYY-mm-dd h:m:00'."""
-    try:
-        # Try parsing with various formats, including 'Jun 22, 2025, 1:45:08 PM'
-        formats = [
-            '%Y-%m-%d %H:%M:%S',
-            '%Y-%m-%d %H:%M',
-            '%b %d, %Y, %I:%M:%S %p',
-            '%b %d, %Y, %I:%M %p'
-        ]
-        for fmt in formats:
-            try:
-                dt = datetime.strptime(time_str, fmt)
-                break
-            except ValueError:
-                continue
-        else:
-            logging.error(f"Unrecognized time format: {time_str}")
-            return None
-        # Round to nearest minute
-        if dt.second >= 30:
-            dt = dt.replace(second=0) + timedelta(minutes=1)
-        else:
-            dt = dt.replace(second=0)
-        # Format: YYYY-mm-dd h:m:00 (no leading zero for hour, cross-platform)
-        formatted = dt.strftime('%Y-%m-%d %H:%M:00')
-        # Remove leading zero from hour if present
-        formatted = formatted.replace(' 0', ' ')
-        return formatted
-    except Exception as e:
-        logging.error(f"Error formatting time '{time_str}': {e}")
-        return None
+def format_timestamps(dt: datetime) -> str:
+    """Format a datetime object, rounding to nearest minute, formatted as 'YYYY-mm-dd h:m:00'."""
+    # Round to nearest minute
+    if dt.second >= 30:
+        dt = dt.replace(second=0) + timedelta(minutes=1)
+    else:
+        dt = dt.replace(second=0)
+    # Format: YYYY-mm-dd h:m:00 (no leading zero for hour, cross-platform)
+    formatted = dt.strftime('%Y-%m-%d %H:%M:00')
+    # Remove leading zero from hour if present
+    formatted = formatted.replace(' 0', ' ')
+    return formatted
 
 
-def convert_time_eastern_to_pacific(time_str: str) -> Optional[str]:
-    """Convert a time string from US Eastern to US Pacific timezone."""
-    try:
-        eastern = pytz.timezone('US/Eastern')
-        pacific = pytz.timezone('US/Pacific')
-        # Try parsing with various formats
-        formats = [
-            '%Y-%m-%d %H:%M:%S',
-            '%Y-%m-%d %H:%M',
-            '%b %d, %Y, %I:%M:%S %p',
-            '%b %d, %Y, %I:%M %p'
-        ]
-        for fmt in formats:
-            try:
-                dt = datetime.strptime(time_str, fmt)
-                break
-            except ValueError:
-                continue
-        else:
-            logging.error(f"Unrecognized time format: {time_str}")
-            return None
-        dt_eastern = eastern.localize(dt)
-        dt_pacific = dt_eastern.astimezone(pacific)
-        # Return formatted as 'YYYY-mm-dd H:M:S' for next processing
-        return dt_pacific.strftime('%Y-%m-%d %H:%M:%S')
-    except Exception as e:
-        logging.error(f"Error converting timezone for '{time_str}': {e}")
-        return None
+def parse_timestamp(time_str: str) -> Optional[datetime]:
+    """Parse a time string into a datetime object, trying multiple formats."""
+    formats = [
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        '%b %d, %Y, %I:%M:%S %p',
+        '%b %d, %Y, %I:%M %p'
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(time_str, fmt)
+        except ValueError:
+            continue
+    logging.error(f"Unrecognized time format: {time_str}")
+    return None
+
+
+def convert_time_eastern_to_pacific(dt: datetime) -> datetime:
+    """Convert a datetime object from US Eastern to US Pacific timezone."""
+    eastern = pytz.timezone('US/Eastern')
+    pacific = pytz.timezone('US/Pacific')
+    dt_eastern = eastern.localize(dt)
+    dt_pacific = dt_eastern.astimezone(pacific)
+    return dt_pacific.replace(tzinfo=None)  # Return naive datetime for consistency
 
 
 def get_most_recent_timestamp(ws: Worksheet, timestamp_col: str = 'Timestamp', expected_headers: Optional[List[str]] = None) -> Optional[datetime]:
@@ -153,20 +129,10 @@ def get_most_recent_timestamp(ws: Worksheet, timestamp_col: str = 'Timestamp', e
         timestamps = [r[timestamp_col] for r in records if r.get(timestamp_col)]
         # Try parsing all timestamps
         dt_list = []
-        formats = [
-            '%Y-%m-%d %H:%M:%S',
-            '%Y-%m-%d %H:%M',
-            '%b %d, %Y, %I:%M:%S %p',
-            '%b %d, %Y, %I:%M %p'
-        ]
         for t in timestamps:
-            for fmt in formats:
-                try:
-                    dt = datetime.strptime(t, fmt)
-                    dt_list.append(dt)
-                    break
-                except ValueError:
-                    continue
+            dt = parse_timestamp(t)
+            if dt:
+                dt_list.append(dt)
         if not dt_list:
             return None
         return max(dt_list)
@@ -185,17 +151,16 @@ def update_time_column(input_ws: Worksheet, time_col: str, input_records: List[d
         cell_list = input_ws.range(2, col_idx, len(input_records) + 1, col_idx)
         for i, cell in enumerate(cell_list):
             orig_time = input_records[i][time_col]
-            # First, optionally convert timezone
+            # Parse timestamp once
+            dt = parse_timestamp(orig_time)
+            if not dt:
+                continue
+            # Optionally convert timezone
             if convert_timezone:
-                converted_time = convert_time_eastern_to_pacific(orig_time)
-                if not converted_time:
-                    continue
-            else:
-                converted_time = orig_time
-            # Then, always format the timestamp
-            formatted_time = format_timestamps(converted_time)
-            if formatted_time:
-                cell.value = formatted_time
+                dt = convert_time_eastern_to_pacific(dt)
+            # Always format the timestamp
+            formatted_time = format_timestamps(dt)
+            cell.value = formatted_time
         input_ws.update_cells(cell_list)
         logging.info("Time column updated successfully.")
     except Exception as e:
@@ -210,21 +175,10 @@ def delete_rows_up_to_datetime(input_ws: Worksheet, time_col: str, most_recent: 
     try:
         input_records = input_ws.get_all_records()
         del_idx = None
-        formats = [
-            "%Y-%m-%d %H:%M:%S",
-            "%Y-%m-%d %H:%M",
-            "%b %d, %Y, %I:%M:%S %p",
-            "%b %d, %Y, %I:%M %p"
-        ]
         for i, row in enumerate(input_records):
-            for fmt in formats:
-                try:
-                    dt = datetime.strptime(row[time_col], fmt)
-                    if dt <= most_recent:
-                        del_idx = i
-                    break
-                except Exception:
-                    continue
+            dt = parse_timestamp(row[time_col])
+            if dt and dt <= most_recent:
+                del_idx = i
         if del_idx is not None:
             input_ws.delete_rows(2, del_idx + 2)
             logging.info(f"Deleted rows 2 to {del_idx + 2} in input sheet.")
@@ -398,25 +352,13 @@ def main() -> None:
         # Find the row number for the most recent timestamp
         target_records = target_ws.get_all_records(expected_headers=expected_headers)
         row_number = None
-        formats = [
-            '%Y-%m-%d %H:%M:%S',
-            '%Y-%m-%d %H:%M',
-            '%b %d, %Y, %I:%M:%S %p',
-            '%b %d, %Y, %I:%M %p'
-        ]
         for idx, row in enumerate(target_records, start=2):  # Data starts at row 2
             ts = row.get('Timestamp')
             if not ts:
                 continue
-            for fmt in formats:
-                try:
-                    dt = datetime.strptime(ts, fmt)
-                    if dt == most_recent:
-                        row_number = idx
-                        break
-                except Exception:
-                    continue
-            if row_number is not None:
+            dt = parse_timestamp(ts)
+            if dt and dt == most_recent:
+                row_number = idx
                 break
         print(f"Latest datetime in 'Timestamp' column: {most_recent} (row {row_number})")
 
