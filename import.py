@@ -65,12 +65,46 @@ def get_gspread_client(credentials_path: str) -> gspread.Client:
     return gspread.authorize(creds)
 
 
+def format_timestamps(time_str: str) -> Optional[str]:
+    """Format a time string, rounding to nearest minute, formatted as 'YYYY-mm-dd h:m:00'."""
+    try:
+        # Try parsing with various formats, including 'Jun 22, 2025, 1:45:08 PM'
+        formats = [
+            '%Y-%m-%d %H:%M:%S',
+            '%Y-%m-%d %H:%M',
+            '%b %d, %Y, %I:%M:%S %p',
+            '%b %d, %Y, %I:%M %p'
+        ]
+        for fmt in formats:
+            try:
+                dt = datetime.strptime(time_str, fmt)
+                break
+            except ValueError:
+                continue
+        else:
+            logging.error(f"Unrecognized time format: {time_str}")
+            return None
+        # Round to nearest minute
+        if dt.second >= 30:
+            dt = dt.replace(second=0) + timedelta(minutes=1)
+        else:
+            dt = dt.replace(second=0)
+        # Format: YYYY-mm-dd h:m:00 (no leading zero for hour, cross-platform)
+        formatted = dt.strftime('%Y-%m-%d %H:%M:00')
+        # Remove leading zero from hour if present
+        formatted = formatted.replace(' 0', ' ')
+        return formatted
+    except Exception as e:
+        logging.error(f"Error formatting time '{time_str}': {e}")
+        return None
+
+
 def convert_time_eastern_to_pacific(time_str: str) -> Optional[str]:
-    """Convert a time string from US Eastern to US Pacific, rounding to nearest minute, formatted as 'YYYY-mm-dd h:m:00'."""
+    """Convert a time string from US Eastern to US Pacific timezone."""
     try:
         eastern = pytz.timezone('US/Eastern')
         pacific = pytz.timezone('US/Pacific')
-        # Try parsing with various formats, including 'Jun 22, 2025, 1:45:08 PM'
+        # Try parsing with various formats
         formats = [
             '%Y-%m-%d %H:%M:%S',
             '%Y-%m-%d %H:%M',
@@ -88,18 +122,10 @@ def convert_time_eastern_to_pacific(time_str: str) -> Optional[str]:
             return None
         dt_eastern = eastern.localize(dt)
         dt_pacific = dt_eastern.astimezone(pacific)
-        # Round to nearest minute
-        if dt_pacific.second >= 30:
-            dt_pacific = dt_pacific.replace(second=0) + timedelta(minutes=1)
-        else:
-            dt_pacific = dt_pacific.replace(second=0)
-        # Format: YYYY-mm-dd h:m:00 (no leading zero for hour, cross-platform)
-        formatted = dt_pacific.strftime('%Y-%m-%d %H:%M:00')
-        # Remove leading zero from hour if present
-        formatted = formatted.replace(' 0', ' ')
-        return formatted
+        # Return formatted as 'YYYY-mm-dd H:M:S' for next processing
+        return dt_pacific.strftime('%Y-%m-%d %H:%M:%S')
     except Exception as e:
-        logging.error(f"Error converting time '{time_str}': {e}")
+        logging.error(f"Error converting timezone for '{time_str}': {e}")
         return None
 
 
@@ -149,18 +175,27 @@ def get_most_recent_timestamp(ws: Worksheet, timestamp_col: str = 'Timestamp', e
         return None
 
 
-def update_time_column(input_ws: Worksheet, time_col: str, input_records: List[dict]) -> None:
+def update_time_column(input_ws: Worksheet, time_col: str, input_records: List[dict], convert_timezone: bool = False) -> None:
     """
-    Batch update the Time column in the input worksheet, converting from Eastern to Pacific.
+    Batch update the Time column in the input worksheet.
+    Always formats timestamps. Optionally converts from Eastern to Pacific timezone.
     """
     try:
         col_idx = list(input_records[0].keys()).index(time_col) + 1
         cell_list = input_ws.range(2, col_idx, len(input_records) + 1, col_idx)
         for i, cell in enumerate(cell_list):
             orig_time = input_records[i][time_col]
-            new_time = convert_time_eastern_to_pacific(orig_time)
-            if new_time:
-                cell.value = new_time
+            # First, optionally convert timezone
+            if convert_timezone:
+                converted_time = convert_time_eastern_to_pacific(orig_time)
+                if not converted_time:
+                    continue
+            else:
+                converted_time = orig_time
+            # Then, always format the timestamp
+            formatted_time = format_timestamps(converted_time)
+            if formatted_time:
+                cell.value = formatted_time
         input_ws.update_cells(cell_list)
         logging.info("Time column updated successfully.")
     except Exception as e:
@@ -345,12 +380,12 @@ def main() -> None:
             logging.error("No 'Time' column found in input sheet.")
             return
 
-        # Update Time column in batch (if timezone conversion is enabled)
+        # Update Time column in batch (always format, optionally convert timezone)
+        update_time_column(input_ws, time_col, input_records, convert_timezone=convert_timezone)
         if convert_timezone:
-            update_time_column(input_ws, time_col, input_records)
             logging.info("Timezone conversion enabled: converted timestamps from Eastern to Pacific.")
         else:
-            logging.info("Timezone conversion disabled: timestamps will not be converted.")
+            logging.info("Timezone conversion disabled: timestamps formatted only.")
 
         # Find most recent timestamp in target sheet, using explicit headers for blank column A
         expected_headers = ['', 'Timestamp', 'Delta']
