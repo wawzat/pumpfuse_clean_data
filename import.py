@@ -18,9 +18,6 @@ Requirements:
     - See requirements.txt for dependencies
     - User must have access to the specified Google Sheets
 
-Command Line Arguments:
-    -h, --help      Show usage instructions
-
 Configuration:
     - config.ini for sensitive settings (API keys, sheet names, credentials)
     - user_settings.ini for user-specific non-sensitive settings
