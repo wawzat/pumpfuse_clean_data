@@ -33,7 +33,6 @@ Exception Handling:
 
 """
 
-import argparse
 import configparser
 import logging
 from datetime import datetime, timedelta
@@ -316,10 +315,6 @@ def main() -> None:
     """
     Main function to process the Google Sheets as described in the requirements.
     """
-    parser = argparse.ArgumentParser(
-        description="Convert Time column from US Eastern to US Pacific and clean rows in Google Sheets."
-    )
-    args = parser.parse_args()
     try:
         config = load_config()
         credentials_path = config['google']['credentials_json']
