@@ -322,7 +322,7 @@ def main() -> None:
         client = get_gspread_client(credentials_path)
 
         # Open input spreadsheet and its Sheet1 tab
-        input_sh = client.open(input_sheet_name)u
+        input_sh = client.open(input_sheet_name)
         input_ws = input_sh.worksheet('Sheet1')
 
         # Open target spreadsheet and its Data tab
