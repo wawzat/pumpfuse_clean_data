@@ -325,6 +325,7 @@ def main() -> None:
         credentials_path = config['google']['credentials_json']
         target_sheet_name = config['google']['target_sheet_name']
         input_sheet_name = config['google']['input_sheet_name']
+        convert_timezone = config.getboolean('google', 'convert_timezone', fallback=True)
 
         client = get_gspread_client(credentials_path)
 
@@ -352,8 +353,12 @@ def main() -> None:
             logging.error("No 'Time' column found in input sheet.")
             return
 
-        # Update Time column in batch
-        update_time_column(input_ws, time_col, input_records)
+        # Update Time column in batch (if timezone conversion is enabled)
+        if convert_timezone:
+            update_time_column(input_ws, time_col, input_records)
+            logging.info("Timezone conversion enabled: converted timestamps from Eastern to Pacific.")
+        else:
+            logging.info("Timezone conversion disabled: timestamps will not be converted.")
 
         # Find most recent timestamp in target sheet, using explicit headers for blank column A
         expected_headers = ['', 'Timestamp', 'Delta']
