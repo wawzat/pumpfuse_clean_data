@@ -170,20 +170,23 @@ def update_time_column(input_ws: Worksheet, time_col: str, input_records: List[d
 
 def delete_rows_up_to_datetime(input_ws: Worksheet, time_col: str, most_recent: datetime) -> None:
     """
-    Delete all rows in the input worksheet up to and including the row with the most recent datetime.
+    Delete all rows in the input worksheet up to and including the last row 
+    that matches the most recent datetime from the target sheet.
     """
     try:
         input_records = input_ws.get_all_records()
         del_idx = None
         for i, row in enumerate(input_records):
             dt = parse_timestamp(row[time_col])
-            if dt and dt <= most_recent:
+            # Only update del_idx if we find an exact match
+            if dt and dt == most_recent:
                 del_idx = i
+        
         if del_idx is not None:
             input_ws.delete_rows(2, del_idx + 2)
-            logging.info(f"Deleted rows 2 to {del_idx + 2} in input sheet.")
+            logging.info(f"Deleted rows 2 to {del_idx + 2} in input sheet (up to and including timestamp: {most_recent}).")
         else:
-            logging.info("No rows to delete based on most recent timestamp.")
+            logging.info(f"No rows found matching the most recent timestamp ({most_recent}). No rows deleted.")
     except Exception as e:
         logging.error(f"Failed to delete rows: {e}")
         raise
