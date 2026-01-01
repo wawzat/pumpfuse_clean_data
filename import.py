@@ -325,12 +325,12 @@ def main() -> None:
         credentials_path = config['google']['credentials_json']
         target_sheet_name = config['google']['target_sheet_name']
         input_sheet_name = config['google']['input_sheet_name']
-        convert_timezone = config.getboolean('google', 'convert_timezone', fallback=True)
+        convert_timezone = config.getboolean('optons', 'convert_timezone', fallback=False)
 
         client = get_gspread_client(credentials_path)
 
         # Open input spreadsheet and its Sheet1 tab
-        input_sh = client.open(input_sheet_name)
+        input_sh = client.open(input_sheet_name)u
         input_ws = input_sh.worksheet('Sheet1')
 
         # Open target spreadsheet and its Data tab
