@@ -320,44 +320,53 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         driver.execute_script("arguments[0].scrollIntoView(true);", share_btn)
         share_btn.click()
         logging.info("Clicked Share button.")
-        time.sleep(2)  # Give dialog time to appear
+        time.sleep(3)  # Increased wait time for dialog to fully render
 
-        # Check for iframe and switch if present
-        iframes = driver.find_elements(By.TAG_NAME, "iframe")
-        for iframe in iframes:
+        # Try multiple possible aria-labels for the email input (Google changes these frequently)
+        email_input = None
+        email_input_selectors = [
+            "//input[contains(@aria-label, 'Add people, groups, spaces, and calendar events')]",
+            "//input[contains(@aria-label, 'Add people and groups')]",
+            "//input[contains(@aria-label, 'Add people')]",
+            "//input[@type='text' and contains(@placeholder, 'Add people')]",
+            "//input[@role='combobox']"
+        ]
+        
+        for selector in email_input_selectors:
             try:
-                driver.switch_to.frame(iframe)
-                if driver.find_elements(By.XPATH, "//input[contains(@aria-label, 'Add people, groups')]"):
-                    logging.info("Switched to share dialog iframe.")
-                    break
-                driver.switch_to.default_content()
-            except Exception:
-                driver.switch_to.default_content()
-        else:
-            driver.switch_to.default_content()
+                logging.info(f"Trying email input selector: {selector}")
+                email_input = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
+                logging.info(f"Found email input using selector: {selector}")
+                break
+            except TimeoutException:
+                continue
+        
+        if not email_input:
+            logging.error("Could not find email input field with any known selector.")
+            driver.save_screenshot("share_email_input_not_found.png")
+            logging.info("Screenshot saved as share_email_input_not_found.png")
+            return False
 
-        # Updated aria-label to match actual text
-        email_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@aria-label, 'Add people, groups, spaces, and calendar events')]")))
         driver.execute_script("arguments[0].scrollIntoView(true);", email_input)
         email_input.clear()
         email_input.send_keys(email)
         logging.info(f"Entered email: {email}")
-        time.sleep(1)
+        time.sleep(2)  # Increased wait for autocomplete suggestions to appear
         email_input.send_keys(Keys.ENTER)
         logging.info("Pressed Enter to confirm email selection.")
         
         # Wait for the notification dialog to appear
-        time.sleep(2)
+        time.sleep(3)  # Increased wait time
         
         # Try to find and uncheck the 'Notify people' checkbox
         try:
-            # Try multiple possible selectors for the notify checkbox
             notify_checkbox = None
             checkbox_selectors = [
                 "//input[@type='checkbox' and @name='notify']",
                 "//input[@type='checkbox' and contains(@aria-label, 'Notify')]",
                 "//span[contains(text(), 'Notify people')]/ancestor::div[contains(@class, 'checkbox')]//input[@type='checkbox']",
-                "//div[contains(text(), 'Notify people')]/preceding::input[@type='checkbox'][1]"
+                "//div[contains(text(), 'Notify people')]/preceding::input[@type='checkbox'][1]",
+                "//input[@type='checkbox' and @aria-checked]"
             ]
             
             for selector in checkbox_selectors:
@@ -373,8 +382,7 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
                 if notify_checkbox.is_selected():
                     notify_checkbox.click()
                     logging.info("Unchecked Notify people checkbox.")
-                    # Wait for button to change from Send to Share after unchecking
-                    time.sleep(1)
+                    time.sleep(2)  # Increased wait for button text to change
                 else:
                     logging.info("Notify people checkbox already unchecked.")
             else:
@@ -382,22 +390,19 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         except Exception as e:
             logging.warning(f"Could not interact with Notify people checkbox: {e}")
         
-        # Click the Share or Send button (Share appears after unchecking notify, Send if notify is checked)
+        # Click the Share or Send button
         try:
-            # First try Share button (appears when notify is unchecked)
             share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Share']]")))
             driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
             share_button.click()
             logging.info("Clicked Share button in notification dialog.")
         except TimeoutException:
-            # Fallback to Send button or other variations
             try:
                 send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Send']]")))
                 driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
                 send_button.click()
                 logging.info("Clicked Send button in notification dialog.")
             except TimeoutException:
-                # Last fallback using contains
                 try:
                     button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Share') or contains(., 'Send')]")))
                     driver.execute_script("arguments[0].scrollIntoView(true);", button)
@@ -405,27 +410,23 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
                     logging.info("Clicked Share/Send button (fallback selector) in notification dialog.")
                 except Exception as e:
                     logging.error(f"Could not find Share or Send button: {e}")
-                    # Take screenshot for debugging
-                    try:
-                        driver.save_screenshot("share_dialog_error.png")
-                        logging.info("Screenshot saved as share_dialog_error.png for debugging.")
-                    except Exception:
-                        pass
+                    driver.save_screenshot("share_dialog_error.png")
+                    logging.info("Screenshot saved as share_dialog_error.png for debugging.")
                     return False
         
-        # Wait for dialog to close
-        wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[contains(@aria-label, 'Add people, groups, spaces, and calendar events')]")))
-        logging.info(f"Shared Google Sheet with {email} (notify people unchecked).")
+        # Wait for dialog to close with increased timeout
+        try:
+            wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[contains(@aria-label, 'Add people')]")))
+            logging.info(f"Shared Google Sheet with {email} (notify people unchecked).")
+        except TimeoutException:
+            logging.warning("Share dialog did not close as expected, but operation may have succeeded.")
+        
         driver.switch_to.default_content()
         return True
     except Exception as e:
         logging.error(f"Failed to share Google Sheet: {e}")
-        # Take screenshot for debugging
-        try:
-            driver.save_screenshot("share_error.png")
-            logging.info("Screenshot saved as share_error.png for debugging.")
-        except Exception:
-            pass
+        driver.save_screenshot("share_error.png")
+        logging.info("Screenshot saved as share_error.png for debugging.")
         driver.switch_to.default_content()
         return False
 
