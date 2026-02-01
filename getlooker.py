@@ -15,6 +15,8 @@ import configparser
 import logging
 from typing import Optional
 from datetime import datetime
+import json
+import os
 import gspread
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -472,6 +474,60 @@ def switch_to_sheet_tab_by_title(driver: webdriver.Edge, sheet_title: str = "Pum
         time.sleep(2)
     return False
 
+def resolve_edge_profile_directory(
+    user_data_dir: str,
+    config: configparser.ConfigParser,
+    default_directory: str = "Default",
+) -> str:
+    """
+    Resolves the Edge profile directory to use based on config.ini.
+
+    This function supports two config options under the [edge] section:
+    - profile_name: A friendly profile name shown in Edge (e.g., "Personal").
+    - profile_directory: The profile directory name (e.g., "Default", "Profile 1").
+
+    If profile_name is provided, the function attempts to map it to the correct
+    directory using Edge's Local State file. If resolution fails, it falls back
+    to profile_directory, then to the provided default_directory.
+
+    Args:
+        user_data_dir (str): Path to the Edge user data directory.
+        config (configparser.ConfigParser): Loaded config instance.
+        default_directory (str): Fallback profile directory name.
+
+    Returns:
+        str: The resolved Edge profile directory name.
+    """
+    profile_name = config.get("edge", "profile_name", fallback="").strip()
+    profile_directory = config.get("edge", "profile_directory", fallback="").strip()
+
+    if profile_name:
+        local_state_path = os.path.join(user_data_dir, "Local State")
+        try:
+            with open(local_state_path, "r", encoding="utf-8") as local_state_file:
+                local_state = json.load(local_state_file)
+            info_cache = local_state.get("profile", {}).get("info_cache", {})
+            for directory, details in info_cache.items():
+                name = str(details.get("name", "")).strip()
+                if name.lower() == profile_name.lower():
+                    logging.info(
+                        f"Resolved Edge profile name '{profile_name}' to directory '{directory}'."
+                    )
+                    return directory
+        except FileNotFoundError:
+            logging.warning(
+                "Edge Local State file not found; falling back to profile_directory."
+            )
+        except (json.JSONDecodeError, OSError) as exc:
+            logging.warning(
+                f"Could not parse Edge Local State file: {exc}. Falling back to profile_directory."
+            )
+
+    if profile_directory:
+        return profile_directory
+
+    return default_directory
+
 if __name__ == "__main__":
     import argparse
     import sys
@@ -497,11 +553,11 @@ if __name__ == "__main__":
     try:
         from selenium.webdriver.edge.options import Options
         from selenium.webdriver.edge.service import Service
-        import os
-        import subprocess
         edge_options = Options()
         edge_options.add_argument(fr"--user-data-dir={edge_user_data_dir}")
-        edge_options.add_argument("--profile-directory=Default")  # Change if you use a different profile
+        profile_directory = resolve_edge_profile_directory(edge_user_data_dir, config)
+        edge_options.add_argument(f"--profile-directory={profile_directory}")
+        logging.info(f"Using Edge profile directory: {profile_directory}")
         # Redirect browser stderr to suppress GPU/Chromium errors
         edge_service = Service(stderr=open(os.devnull, 'w'))
         driver = webdriver.Edge(options=edge_options, service=edge_service)
