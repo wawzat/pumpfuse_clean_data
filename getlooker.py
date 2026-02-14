@@ -208,25 +208,24 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
         # Add explicit wait for context menu to appear
         time.sleep(1)
 
-        # 2. Click the Export data option in the context menu
-        # Try multiple approaches to find the Export data option
-        export_option = None
+        # 2. Click the "Export chart..." option in the context menu
+        export_chart_option = None
         try:
-            # First attempt: data-test-id with "Export data"
-            export_option_xpath = "//button[@data-test-id='Export data']"
-            export_option = wait.until(
-                EC.element_to_be_clickable((By.XPATH, export_option_xpath))
+            # First attempt: data-test-id with "Export chart"
+            export_chart_xpath = "//button[@data-test-id='Export chart']"
+            export_chart_option = wait.until(
+                EC.element_to_be_clickable((By.XPATH, export_chart_xpath))
             )
         except TimeoutException:
-            logging.info("Export data option not found by data-test-id, trying text content...")
+            logging.info("Export chart option not found by data-test-id, trying text content...")
             try:
-                # Second attempt: text content with "Export data"
-                export_option_xpath = "//button[contains(., 'Export data')]"
-                export_option = wait.until(
-                    EC.element_to_be_clickable((By.XPATH, export_option_xpath))
+                # Second attempt: text content with "Export chart..."
+                export_chart_xpath = "//button[contains(., 'Export chart')]"
+                export_chart_option = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, export_chart_xpath))
                 )
             except TimeoutException:
-                logging.error("Export data option not found in context menu. Menu may not have appeared.")
+                logging.error("Export chart option not found in context menu. Menu may not have appeared.")
                 # Take a screenshot for debugging
                 try:
                     driver.save_screenshot("context_menu_error.png")
@@ -235,8 +234,40 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
                     pass
                 return False
         
-        export_option.click()
-        logging.info("Clicked Export data option in context menu.")
+        export_chart_option.click()
+        logging.info("Clicked 'Export chart...' option in context menu.")
+        
+        # Wait for the fly-out dialog to appear
+        time.sleep(1)
+        
+        # 2b. Click the "Export data" option in the fly-out dialog
+        export_data_option = None
+        try:
+            # First attempt: data-test-id with "Export data"
+            export_data_xpath = "//button[@data-test-id='Export data']"
+            export_data_option = wait.until(
+                EC.element_to_be_clickable((By.XPATH, export_data_xpath))
+            )
+        except TimeoutException:
+            logging.info("Export data option not found by data-test-id, trying text content...")
+            try:
+                # Second attempt: text content with "Export data"
+                export_data_xpath = "//button[contains(., 'Export data')]"
+                export_data_option = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, export_data_xpath))
+                )
+            except TimeoutException:
+                logging.error("Export data option not found in fly-out menu.")
+                # Take a screenshot for debugging
+                try:
+                    driver.save_screenshot("export_data_menu_error.png")
+                    logging.info("Screenshot saved as export_data_menu_error.png for debugging.")
+                except Exception:
+                    pass
+                return False
+        
+        export_data_option.click()
+        logging.info("Clicked 'Export data' option in fly-out menu.")
 
         # 3. Change the export name to 'PumpFuse_new' using the export-name-field class
         name_input_css = "input.export-name-field"
@@ -322,20 +353,29 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         logging.info("Clicked Share button.")
         time.sleep(3)  # Increased wait time for dialog to fully render
 
-        # Try multiple possible aria-labels for the email input (Google changes these frequently)
+        # Wait for the share dialog iframe to be present and switch to it
+        try:
+            iframe = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "share-client-content-iframe")))
+            driver.switch_to.frame(iframe)
+            logging.info("Switched to share dialog iframe.")
+            time.sleep(1)
+        except TimeoutException:
+            logging.warning("Share dialog iframe not found, attempting to find email input without iframe switch.")
+
+        # Try multiple possible selectors for the email input (within the iframe context now)
         email_input = None
         email_input_selectors = [
-            "//input[contains(@aria-label, 'Add people, groups, spaces, and calendar events')]",
-            "//input[contains(@aria-label, 'Add people and groups')]",
+            "//input[contains(@placeholder, 'Add people, groups, spaces, and calendar events')]",
+            "//input[contains(@placeholder, 'Add people and groups')]",
+            "//input[contains(@placeholder, 'Add people')]",
             "//input[contains(@aria-label, 'Add people')]",
-            "//input[@type='text' and contains(@placeholder, 'Add people')]",
-            "//input[@role='combobox']"
+            "//input[@type='text']"
         ]
         
         for selector in email_input_selectors:
             try:
                 logging.info(f"Trying email input selector: {selector}")
-                email_input = wait.until(EC.presence_of_element_located((By.XPATH, selector)))
+                email_input = wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
                 logging.info(f"Found email input using selector: {selector}")
                 break
             except TimeoutException:
@@ -348,17 +388,34 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
             return False
 
         driver.execute_script("arguments[0].scrollIntoView(true);", email_input)
-        email_input.clear()
-        email_input.send_keys(email)
+        time.sleep(0.5)  # Ensure scroll completes
+        
+        # Use JavaScript to click and focus the input to avoid "element click intercepted" errors
+        # This bypasses overlay elements that might intercept Selenium clicks
+        driver.execute_script("arguments[0].click(); arguments[0].focus();", email_input)
+        time.sleep(0.5)
+        
+        # Clear any existing text using keyboard shortcut
+        email_input.send_keys(Keys.CONTROL + 'a')
+        email_input.send_keys(Keys.DELETE)
+        time.sleep(0.2)
+        
+        # Type email with incremental delays to ensure proper input
+        for char in email:
+            email_input.send_keys(char)
+            time.sleep(0.05)
+        
         logging.info(f"Entered email: {email}")
-        time.sleep(2)  # Increased wait for autocomplete suggestions to appear
+        time.sleep(2)  # Wait for autocomplete suggestions to appear
+        email_input.send_keys(Keys.ARROW_DOWN)  # Select first autocomplete suggestion if available
+        time.sleep(0.5)
         email_input.send_keys(Keys.ENTER)
         logging.info("Pressed Enter to confirm email selection.")
         
         # Wait for the notification dialog to appear
         time.sleep(3)  # Increased wait time
         
-        # Try to find and uncheck the 'Notify people' checkbox
+        # Try to find and uncheck the 'Notify people' checkbox (within iframe)
         try:
             notify_checkbox = None
             checkbox_selectors = [
@@ -366,7 +423,7 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
                 "//input[@type='checkbox' and contains(@aria-label, 'Notify')]",
                 "//span[contains(text(), 'Notify people')]/ancestor::div[contains(@class, 'checkbox')]//input[@type='checkbox']",
                 "//div[contains(text(), 'Notify people')]/preceding::input[@type='checkbox'][1]",
-                "//input[@type='checkbox' and @aria-checked]"
+                "//input[@type='checkbox']"
             ]
             
             for selector in checkbox_selectors:
@@ -390,31 +447,37 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
         except Exception as e:
             logging.warning(f"Could not interact with Notify people checkbox: {e}")
         
-        # Click the Share or Send button
+        # Click the Share, Send, or Done button (within iframe)
         try:
-            share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Share']]")))
+            share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Done']]")))
             driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
             share_button.click()
-            logging.info("Clicked Share button in notification dialog.")
+            logging.info("Clicked Done button.")
         except TimeoutException:
             try:
-                send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Send']]")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
-                send_button.click()
-                logging.info("Clicked Send button in notification dialog.")
+                share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Share']]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
+                share_button.click()
+                logging.info("Clicked Share button in notification dialog.")
             except TimeoutException:
                 try:
-                    button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Share') or contains(., 'Send')]")))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", button)
-                    button.click()
-                    logging.info("Clicked Share/Send button (fallback selector) in notification dialog.")
-                except Exception as e:
-                    logging.error(f"Could not find Share or Send button: {e}")
-                    driver.save_screenshot("share_dialog_error.png")
-                    logging.info("Screenshot saved as share_dialog_error.png for debugging.")
-                    return False
+                    send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Send']]")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
+                    send_button.click()
+                    logging.info("Clicked Send button in notification dialog.")
+                except TimeoutException:
+                    try:
+                        button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Done') or contains(text(), 'Share') or contains(text(), 'Send')]")))
+                        driver.execute_script("arguments[0].scrollIntoView(true);", button)
+                        button.click()
+                        logging.info("Clicked done/share/send button (fallback selector).")
+                    except Exception as e:
+                        logging.error(f"Could not find Done/Share/Send button: {e}")
+                        driver.save_screenshot("share_dialog_error.png")
+                        logging.info("Screenshot saved as share_dialog_error.png for debugging.")
+                        return False
         
-        # Wait for dialog to close with increased timeout
+        # Wait for dialog to close and switch back to main content
         try:
             wait.until(EC.invisibility_of_element_located((By.XPATH, "//input[contains(@aria-label, 'Add people')]")))
             logging.info(f"Shared Google Sheet with {email} (notify people unchecked).")
