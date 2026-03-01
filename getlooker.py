@@ -453,26 +453,27 @@ def share_google_sheet_with_service_account(driver: webdriver.Edge, config_path:
             logging.warning(f"Could not interact with Notify people checkbox: {e}")
         
         # Click the Share, Send, or Done button (within iframe)
+        # Use shorter timeout and try Share first (known to work based on logs)
         try:
-            share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Done']]")))
+            share_button = short_wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Share']]")))
             driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
             share_button.click()
-            logging.info("Clicked Done button.")
+            logging.info("Clicked Share button in notification dialog.")
         except TimeoutException:
             try:
-                share_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Share']]")))
-                driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
-                share_button.click()
-                logging.info("Clicked Share button in notification dialog.")
+                send_button = short_wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Send']]")))
+                driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
+                send_button.click()
+                logging.info("Clicked Send button in notification dialog.")
             except TimeoutException:
                 try:
-                    send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Send']]")))
-                    driver.execute_script("arguments[0].scrollIntoView(true);", send_button)
-                    send_button.click()
-                    logging.info("Clicked Send button in notification dialog.")
+                    share_button = short_wait.until(EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Done']]")))
+                    driver.execute_script("arguments[0].scrollIntoView(true);", share_button)
+                    share_button.click()
+                    logging.info("Clicked Done button.")
                 except TimeoutException:
                     try:
-                        button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Done') or contains(text(), 'Share') or contains(text(), 'Send')]")))
+                        button = short_wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Done') or contains(text(), 'Share') or contains(text(), 'Send')]")))
                         driver.execute_script("arguments[0].scrollIntoView(true);", button)
                         button.click()
                         logging.info("Clicked done/share/send button (fallback selector).")
