@@ -663,40 +663,37 @@ if __name__ == "__main__":
     finally:
         if driver:
             logging.info("Leaving Looker Studio page open for user inspection. Close the browser window manually when done.")
+            input("Press Enter to close the browser and exit the script...\n")
+            logging.info("User requested shutdown. Closing browser.")
             try:
-                while True:
-                    input("Press Ctrl+C in this terminal to close the browser and exit the script...\n")
-            except KeyboardInterrupt:
-                logging.info("User requested shutdown. Closing browser.")
-                try:
-                    # Suppress urllib3 and selenium warnings during shutdown
-                    import logging as pylogging
-                    for noisy_logger in [
-                        'urllib3.connectionpool',
-                        'urllib3.util.retry',
-                        'selenium.webdriver.remote.remote_connection',
-                        'selenium.webdriver.remote.errorhandler',
-                    ]:
-                        pylogging.getLogger(noisy_logger).setLevel(pylogging.ERROR)
-                    driver.quit()
-                except Exception as e:
-                    import traceback
-                    # Suppress expected connection errors on shutdown (e.g., ConnectionResetError, urllib3 warnings)
-                    err_str = str(e)
-                    if any(msg in err_str for msg in [
-                        'ConnectionResetError',
-                        'Failed to establish a new connection',
-                        'actively refused',
-                        'connection was forcibly closed',
-                        'invalid session id',
-                        'invalid after WaitForGetOffsetInRange',
-                        'Retry(total=',
-                        'NewConnectionError',
-                        'MaxRetryError',
-                        'HTTPConnection object',
-                    ]):
-                        logging.debug(f"Suppressed expected shutdown error: {e}")
-                        logging.debug(traceback.format_exc())
-                    else:
-                        logging.error(f"Unexpected error during driver.quit(): {e}")
-                        logging.debug(traceback.format_exc())
+                # Suppress urllib3 and selenium warnings during shutdown
+                import logging as pylogging
+                for noisy_logger in [
+                    'urllib3.connectionpool',
+                    'urllib3.util.retry',
+                    'selenium.webdriver.remote.remote_connection',
+                    'selenium.webdriver.remote.errorhandler',
+                ]:
+                    pylogging.getLogger(noisy_logger).setLevel(pylogging.ERROR)
+                driver.quit()
+            except Exception as e:
+                import traceback
+                # Suppress expected connection errors on shutdown (e.g., ConnectionResetError, urllib3 warnings)
+                err_str = str(e)
+                if any(msg in err_str for msg in [
+                    'ConnectionResetError',
+                    'Failed to establish a new connection',
+                    'actively refused',
+                    'connection was forcibly closed',
+                    'invalid session id',
+                    'invalid after WaitForGetOffsetInRange',
+                    'Retry(total=',
+                    'NewConnectionError',
+                    'MaxRetryError',
+                    'HTTPConnection object',
+                ]):
+                    logging.debug(f"Suppressed expected shutdown error: {e}")
+                    logging.debug(traceback.format_exc())
+                else:
+                    logging.error(f"Unexpected error during driver.quit(): {e}")
+                    logging.debug(traceback.format_exc())
