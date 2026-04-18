@@ -146,13 +146,6 @@ class Launcher:
         self.draw_status(status)
         self.stdscr.refresh()
 
-    def _wait_for_key(self, msg: str = "Done — press any key to return to menu...") -> None:
-        """Display a message in the status bar and block until any key is pressed."""
-        self.draw_header()
-        self.draw_status(msg)
-        self.stdscr.refresh()
-        self.stdscr.getch()
-
     # ------------------------------------------------------------------
     # Subprocess runner
     # ------------------------------------------------------------------
@@ -324,7 +317,6 @@ class Launcher:
                 self.append_output("─── GetLooker ─────────────────────────────────────")
                 self.run_script("getlooker.py")
                 self.append_output("─── GetLooker complete ────────────────────────────")
-                self._wait_for_key()
 
             elif key == "2":
                 self.append_output("─── Import ────────────────────────────────────────")
@@ -345,7 +337,6 @@ class Launcher:
                         break
 
                 self.append_output("─── Import complete ───────────────────────────────")
-                self._wait_for_key()
 
             elif key == "3":
                 row = self._prompt_clean_row()
@@ -355,13 +346,11 @@ class Launcher:
                     )
                     self.run_script("clean.py", [str(row)])
                     self.append_output("─── Clean complete ────────────────────────────────")
-                self._wait_for_key()
 
             elif key == "4":
                 self.append_output("─── GetWeather ────────────────────────────────────")
                 self.run_script("getweather.py")
                 self.append_output("─── GetWeather complete ───────────────────────────")
-                self._wait_for_key()
 
 
 # ---------------------------------------------------------------------------
