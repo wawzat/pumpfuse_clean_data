@@ -31,7 +31,13 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 
 TITLE = " PumpFuse Data Pipeline "
-MENU_LINE = "  [1] GetLooker   [2] Import   [3] Clean   [4] GetWeather   [5] Exit  "
+MENU_OPTIONS: tuple[tuple[int, str], ...] = (
+    (1, "GetLooker"),
+    (2, "Import"),
+    (3, "Clean"),
+    (4, "GetWeather"),
+    (5, "Exit"),
+)
 
 # Matches ANSI CSI escape sequences (colours, cursor movement, etc.) and bare \r
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]|\x1b[()][A-Z0-9]|\r")
@@ -57,6 +63,7 @@ class Launcher:
         self.stdscr = stdscr
         self.output_lines: deque[str] = deque(maxlen=2000)
         self.last_import_row: int | None = None
+        self.completed_steps: set[int] = set()
         self._init_curses()
 
     # ------------------------------------------------------------------
@@ -105,7 +112,13 @@ class Launcher:
         menu_attr = curses.color_pair(2) if curses.has_colors() else curses.A_NORMAL
 
         self._addstr(0, 0, TITLE.center(w - 1), title_attr)
-        self._addstr(1, 0, MENU_LINE[:w - 1].ljust(w - 1), menu_attr)
+        self._addstr(1, 0, " " * (w - 1), menu_attr)
+        col = 2
+        for option, label in MENU_OPTIONS:
+            segment = f"[{option}] {label}"
+            attr = menu_attr | curses.A_BOLD if option in self.completed_steps else menu_attr
+            self._addstr(1, col, segment[: max(0, w - 1 - col)], attr)
+            col += len(segment) + 3
         self._addstr(2, 0, "─" * (w - 1))
         self._addstr(h - 2, 0, "─" * (w - 1))
 
@@ -317,6 +330,7 @@ class Launcher:
                 self.append_output("─── GetLooker ─────────────────────────────────────")
                 self.run_script("getlooker.py")
                 self.append_output("─── GetLooker complete ────────────────────────────")
+                self.completed_steps.add(1)
 
             elif key == "2":
                 self.append_output("─── Import ────────────────────────────────────────")
@@ -337,6 +351,7 @@ class Launcher:
                         break
 
                 self.append_output("─── Import complete ───────────────────────────────")
+                self.completed_steps.add(2)
 
             elif key == "3":
                 row = self._prompt_clean_row()
@@ -346,11 +361,13 @@ class Launcher:
                     )
                     self.run_script("clean.py", [str(row)])
                     self.append_output("─── Clean complete ────────────────────────────────")
+                    self.completed_steps.add(3)
 
             elif key == "4":
                 self.append_output("─── GetWeather ────────────────────────────────────")
                 self.run_script("getweather.py")
                 self.append_output("─── GetWeather complete ───────────────────────────")
+                self.completed_steps.add(4)
 
 
 # ---------------------------------------------------------------------------
