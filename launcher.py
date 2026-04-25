@@ -268,21 +268,33 @@ class Launcher:
 
         # Position the cursor right after the prompt text
         input_col = min(len(prompt), w - 10)
+        chars: list[str] = []
         curses.curs_set(1)
-        curses.echo()
         try:
-            raw = self.stdscr.getstr(h - 1, input_col, w - input_col - 1)
+            while True:
+                current = "".join(chars)
+                self.draw_status((prompt + current)[: w - 1])
+                self.stdscr.move(h - 1, min(input_col + len(current), w - 2))
+                self.stdscr.refresh()
+
+                ch = self.stdscr.getch()
+
+                if ch in (curses.KEY_ENTER, 10, 13):
+                    break
+
+                if ch in (curses.KEY_BACKSPACE, 127, 8):
+                    if chars:
+                        chars.pop()
+                    continue
+
+                if 32 <= ch < 256:
+                    chars.append(chr(ch))
         except curses.error:
-            raw = b""
+            chars = []
         finally:
-            curses.noecho()
             curses.curs_set(0)
 
-        text = (
-            raw.decode("utf-8", errors="replace")
-            if isinstance(raw, (bytes, bytearray))
-            else str(raw)
-        ).strip()
+        text = "".join(chars).strip()
 
         if text == "":
             if auto is None:
@@ -321,7 +333,12 @@ class Launcher:
         while True:
             self._refresh_screen()
             ch = self.stdscr.getch()
-            key = chr(ch) if 0 < ch < 256 else ""
+            if ch in (curses.KEY_ENTER, 10, 13):
+                key = "\n"
+            elif 0 < ch < 256:
+                key = chr(ch)
+            else:
+                key = ""
 
             if key in ("5", "q", "Q"):
                 break
