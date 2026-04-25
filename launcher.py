@@ -94,6 +94,21 @@ class Launcher:
         h, _ = self._dims()
         return _HEADER_ROWS, h - _FOOTER_ROWS
 
+    def _is_enter(self, ch: int) -> bool:
+        """Return True if *ch* is any Enter-family key on any curses backend.
+
+        Covers the standard newline/carriage-return codes (10, 13) and
+        ``curses.KEY_ENTER``, plus the PDCurses constants used on Windows
+        (``PADENTER``, ``CTL_PADENTER``, ``ALT_PADENTER``, ``SHF_PADENTER``)
+        when the active backend exposes them.
+        """
+        enter_codes = {curses.KEY_ENTER, 10, 13}
+        for name in ("PADENTER", "CTL_PADENTER", "ALT_PADENTER", "SHF_PADENTER"):
+            code = getattr(curses, name, None)
+            if code is not None:
+                enter_codes.add(code)
+        return ch in enter_codes
+
     # ------------------------------------------------------------------
     # Drawing primitives
     # ------------------------------------------------------------------
@@ -279,7 +294,7 @@ class Launcher:
 
                 ch = self.stdscr.getch()
 
-                if ch in (curses.KEY_ENTER, 10, 13):
+                if self._is_enter(ch):
                     break
 
                 if ch in (curses.KEY_BACKSPACE, 127, 8):
@@ -333,7 +348,7 @@ class Launcher:
         while True:
             self._refresh_screen()
             ch = self.stdscr.getch()
-            if ch in (curses.KEY_ENTER, 10, 13):
+            if self._is_enter(ch):
                 key = "\n"
             elif 0 < ch < 256:
                 key = chr(ch)
