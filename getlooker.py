@@ -662,9 +662,7 @@ if __name__ == "__main__":
         logging.error(f"Unexpected error: {e}")
     finally:
         if driver:
-            logging.info("Leaving Looker Studio page open for user inspection. Close the browser window manually when done.")
-            input("Press Enter to close the browser and exit the script...\n")
-            logging.info("User requested shutdown. Closing browser.")
+            logging.info("GetLooker complete. Closing browser.")
             try:
                 # Suppress urllib3 and selenium warnings during shutdown
                 import logging as pylogging
