@@ -163,24 +163,30 @@ def select_looker_date_range(driver: webdriver.Edge, start_date: datetime, timeo
         logging.error(f"Error selecting date: {e}")
         return False
 
-def has_data_rows(driver: webdriver.Edge, timeout: int = 20) -> bool:
+def has_data_rows(driver: webdriver.Edge, timeout: int = 30, settle: float = 3.0) -> bool:
     """
-    Waits for the first table data row in the Looker report.
+    Waits until the report table has rows and the row count stops changing.
 
     Args:
         driver (webdriver.Edge): Selenium WebDriver instance.
         timeout (int): Maximum time to wait (in seconds).
+        settle (float): Seconds the row count must stay unchanged.
 
     Returns:
-        bool: True if a data row appeared, False if the selected range has no data.
+        bool: True if rows loaded and settled, False if the selected range has no data.
     """
-    try:
-        WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, ".centerColsContainer .row.block-0.index-0"))
-        )
-        return True
-    except TimeoutException:
-        return False
+    import time
+    end = time.time() + timeout
+    last_count, stable_since = -1, time.time()
+    while time.time() < end:
+        count = len(driver.find_elements(By.CSS_SELECTOR, ".centerColsContainer .row"))
+        if count != last_count:
+            last_count, stable_since = count, time.time()
+        elif count > 0 and time.time() - stable_since >= settle:
+            logging.info(f"Chart shows {count} rows.")
+            return True
+        time.sleep(0.5)
+    return False
 
 def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> bool:
     """
@@ -326,7 +332,8 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
 
         # 5. Click the Export button (look for button with span containing 'Export')
         try:
-            export_button_xpath = "//button[.//span[contains(text(),'Export')]]"
+            # Exact text: 'contains' also matches the 'Export chart'/'Export data' menu items.
+            export_button_xpath = "(//button[.//span[normalize-space(text())='Export']])[last()]"
             export_button = wait.until(
                 EC.element_to_be_clickable((By.XPATH, export_button_xpath))
             )
@@ -555,7 +562,8 @@ def switch_to_sheet_tab_by_title(driver: webdriver.Edge, sheet_title: str = "Pum
         for handle in driver.window_handles:
             driver.switch_to.window(handle)
             try:
-                if sheet_title.lower() in driver.title.lower():
+                if (sheet_title.lower() in driver.title.lower()
+                        or "docs.google.com/spreadsheets" in driver.current_url):
                     return True
             except Exception:
                 continue
