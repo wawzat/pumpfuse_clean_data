@@ -581,6 +581,13 @@ def switch_to_sheet_tab_by_title(driver: webdriver.Edge, sheet_title: str = "Pum
             except Exception:
                 continue
         time.sleep(2)
+    for index, handle in enumerate(driver.window_handles):
+        try:
+            driver.switch_to.window(handle)
+            logging.warning(f"Window {index}: title='{driver.title}' url={driver.current_url}")
+            driver.save_screenshot(f"window_{index}.png")
+        except WebDriverException as exc:
+            logging.warning(f"Window {index}: could not inspect ({exc.msg})")
     return False
 
 def resolve_edge_profile_directory(
