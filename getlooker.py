@@ -344,6 +344,19 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
             logging.error(f"Could not click Export button: {e}")
             return False
 
+        # Manual export opens the sheet after ~10s; log what the browser does meanwhile.
+        original_handles = set(driver.window_handles)
+        for _ in range(20):
+            time.sleep(1)
+            if set(driver.window_handles) - original_handles:
+                break
+        logging.info(f"Windows after export: {len(driver.window_handles)} (before: {len(original_handles)})")
+        try:
+            driver.save_screenshot("after_export.png")
+            logging.info("Screenshot saved as after_export.png for debugging.")
+        except Exception:
+            pass
+
         return True
     except Exception as e:
         logging.error(f"Error during export to Google Sheets: {e}")
