@@ -170,6 +170,19 @@ def _safe_url(driver: webdriver.Edge) -> str:
     except WebDriverException:
         return ""
 
+def is_signed_in_to_google(driver: webdriver.Edge) -> bool:
+    """
+    Checks for Google session cookies in the current browser profile.
+
+    Args:
+        driver (webdriver.Edge): Selenium WebDriver instance on a google.com page.
+
+    Returns:
+        bool: True if a signed-in Google session cookie is present.
+    """
+    session_cookies = {"SID", "SAPISID", "__Secure-1PSID", "__Secure-3PAPISID"}
+    return bool(session_cookies & {cookie["name"] for cookie in driver.get_cookies()})
+
 def has_data_rows(driver: webdriver.Edge, timeout: int = 30, settle: float = 3.0) -> bool:
     """
     Waits until the report table has rows and the row count stops changing.
@@ -351,7 +364,7 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
             logging.error(f"Could not click Export button: {e}")
             return False
 
-        # Manual export opens the sheet after ~10s; a popup seen here closed again within seconds.
+        # The export popup navigates to the new spreadsheet after ~10s and takes focus.
         main_handle = driver.current_window_handle
         seen = {main_handle}
         deadline = time.time() + 40
@@ -362,10 +375,8 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
                 seen.add(handle)
                 try:
                     driver.switch_to.window(handle)
-                    logging.info(f"New window: title='{driver.title}' url={driver.current_url}")
-                    driver.save_screenshot(f"export_window_{len(seen) - 1}.png")
-                except WebDriverException as exc:
-                    logging.info(f"New window closed before it could be inspected ({exc.msg})")
+                except WebDriverException:
+                    pass
             if "docs.google.com/spreadsheets" in _safe_url(driver):
                 return True
             time.sleep(0.25)
@@ -373,9 +384,8 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
             driver.switch_to.window(main_handle)
         except WebDriverException:
             pass
-        logging.info(f"Windows now open: {len(driver.window_handles)}; seen during export: {len(seen)}")
-
-        return True
+        logging.error("Export was clicked but the spreadsheet did not open.")
+        return False
     except Exception as e:
         logging.error(f"Error during export to Google Sheets: {e}")
         # Take a screenshot for debugging
@@ -599,13 +609,6 @@ def switch_to_sheet_tab_by_title(driver: webdriver.Edge, sheet_title: str = "Pum
             except Exception:
                 continue
         time.sleep(2)
-    for index, handle in enumerate(driver.window_handles):
-        try:
-            driver.switch_to.window(handle)
-            logging.warning(f"Window {index}: title='{driver.title}' url={driver.current_url}")
-            driver.save_screenshot(f"window_{index}.png")
-        except WebDriverException as exc:
-            logging.warning(f"Window {index}: could not inspect ({exc.msg})")
     return False
 
 def resolve_edge_profile_directory(
@@ -716,6 +719,14 @@ if __name__ == "__main__":
         WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.CLASS_NAME, "date-text"))
         )
+
+        if not is_signed_in_to_google(driver):
+            logging.error(
+                f"Edge profile '{profile_directory}' in {edge_user_data_dir} is not signed in to Google. "
+                "Launch msedge.exe with --user-data-dir and --profile-directory for it, sign in, then rerun."
+            )
+            sys.exit(1)
+        logging.info("Google session found in Edge profile.")
 
         if select_looker_date_range(driver, latest_dt):
             logging.info("Date selection completed successfully.")
