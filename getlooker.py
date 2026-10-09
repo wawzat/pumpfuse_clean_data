@@ -159,8 +159,7 @@ def select_looker_date_range(driver: webdriver.Edge, start_date: datetime, timeo
 
         return True
 
-    except (TimeoutException, NoSuchElementException, WebDriverException) as e:
-        logging.error(f"Error selecting date: {e}"), ValueError) as e:
+    except (TimeoutException, NoSuchElementException, WebDriverException, ValueError) as e:
         logging.error(f"Error selecting date: {e}")
         return False
 
@@ -181,6 +180,7 @@ def has_data_rows(driver: webdriver.Edge, timeout: int = 20) -> bool:
         )
         return True
     except TimeoutException:
+        return False
 
 def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> bool:
     """
@@ -616,7 +616,7 @@ def resolve_edge_profile_directory(
 
     return default_directory
 
-if _logging.info(f"Using start date from Google Sheet: {latest_dt:%Y-%m-%d
+if __name__ == "__main__":
     import sys
     config = configparser.ConfigParser()
     config.read("config.ini")
@@ -634,8 +634,7 @@ if _logging.info(f"Using start date from Google Sheet: {latest_dt:%Y-%m-%d
     if not latest_dt:
         logging.error("Could not retrieve latest datetime from Google Sheet.")
         sys.exit(1)
-    start_day = latest_dt.day
-    logging.info(f"Using start day from Google Sheet: {start_day}")
+    logging.info(f"Using start date from Google Sheet: {latest_dt:%Y-%m-%d}")
 
     driver: Optional[webdriver.Edge] = None
     try:
@@ -654,11 +653,9 @@ if _logging.info(f"Using start date from Google Sheet: {latest_dt:%Y-%m-%d
         edge_options.add_argument("--disable-dev-shm-usage")
         edge_options.add_argument("--remote-allow-origins=*")
         edge_options.add_experimental_option("excludeSwitches", ["enable-logging"])
-        profile_directory = resolve_edge_prolatest_dt):
-            logging.info("Date selection completed successfully.")
-            if not has_data_rows(driver):
-                logging.info(f"No new data from {latest_dt:%Y-%m-%d} to today; skipping export.")
-            eling.info(f"Using Edge profile directory: {profile_directory}")
+        profile_directory = resolve_edge_profile_directory(edge_user_data_dir, config)
+        edge_options.add_argument(f"--profile-directory={profile_directory}")
+        logging.info(f"Using Edge profile directory: {profile_directory}")
         # Redirect browser stderr to suppress GPU/Chromium errors
         edge_service = Service(executable_path=r"C:\Tools\EdgeDriver\msedgedriver.exe")
         #edge_service.path = r"C:\Tools\EdgeDriver\msedgedriver.exe"
@@ -674,9 +671,11 @@ if _logging.info(f"Using start date from Google Sheet: {latest_dt:%Y-%m-%d
             EC.presence_of_element_located((By.CLASS_NAME, "date-text"))
         )
 
-        if select_looker_date_range(driver, start_day):
+        if select_looker_date_range(driver, latest_dt):
             logging.info("Date selection completed successfully.")
-            if export_data_to_google_sheets(driver):
+            if not has_data_rows(driver):
+                logging.info(f"No new data from {latest_dt:%Y-%m-%d} to today; skipping export.")
+            elif export_data_to_google_sheets(driver):
                 logging.info("Export to Google Sheets completed successfully.")
                 # Switch to the tab with the correct sheet title and share it
                 if switch_to_sheet_tab_by_title(driver, sheet_title="PumpFuse_new"):
