@@ -81,13 +81,13 @@ def get_latest_datetime_from_sheet(config_path: str = "config.ini") -> Optional[
         logging.error(f"Error retrieving latest datetime: {e}")
         return None
 
-def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: int = 10) -> bool:
+def select_looker_date_range(driver: webdriver.Edge, start_date: datetime, timeout: int = 10) -> bool:
     """
     Opens the Looker Studio date range selector and selects the given start date, then clicks the Apply button.
 
     Args:
         driver (webdriver.Edge): Selenium WebDriver instance.
-        start_day (int): The day of the month to select as the start date.
+        start_date (datetime): The date to select as the start date (month and year are navigated to).
         timeout (int): Maximum time to wait for elements (in seconds).
 
     Returns:
@@ -108,43 +108,42 @@ def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: in
         )
         logging.info("Calendar popup is visible.")
 
-        # Determine if the start date is in the previous month
-        # Get the currently displayed month and year from the calendar header
-        header_xpath = "//div[contains(@class, 'mat-calendar-header')]//button[contains(@class, 'mat-calendar-period-button')]/span"
-        header_elem = wait.until(EC.visibility_of_element_located((By.XPATH, header_xpath)))
-        displayed_month_year = header_elem.text.strip()
-        # Parse displayed month and year
-        from datetime import datetime
-        try:
-            displayed_month_dt = datetime.strptime(displayed_month_year, "%b %Y")
-        except ValueError:
-            logging.warning(f"Could not parse calendar header: {displayed_month_year}")
-            displayed_month_dt = datetime.now()
+        # The picker shows two calendars (start, end); work only in the first one.
+        start_cal = "(//*[contains(concat(' ', normalize-space(@class), ' '), ' mat-calendar ')])[1]"
+        label_xpath = (
+            f"{start_cal}//button[contains(@class, 'mat-calendar-period-button')]"
+            "//span[@aria-hidden='true']"
+        )
 
-        # Get today's date and calculate previous month
-        today = datetime.today()
-        prev_month = today.month - 1 if today.month > 1 else 12
-        prev_year = today.year if today.month > 1 else today.year - 1
+        def read_displayed_month() -> datetime:
+            text = wait.until(
+                EC.visibility_of_element_located((By.XPATH, label_xpath))
+            ).text.strip()
+            return datetime.strptime(text.title(), "%b %Y")
 
-        # If the start_day is greater than today.day, assume previous month
-        if start_day > today.day:
-            # If displayed month is not previous month, click previous month button
-            if displayed_month_dt.month != prev_month or displayed_month_dt.year != prev_year:
-                try:
-                    prev_btn_xpath = "//button[contains(@class, 'mat-calendar-previous-button') and @aria-label='Previous month']"
-                    prev_btn = wait.until(EC.element_to_be_clickable((By.XPATH, prev_btn_xpath)))
-                    prev_btn.click()
-                    logging.info("Clicked previous month button.")
-                except TimeoutException:
-                    logging.warning("Previous month button not found or not clickable.")
+        displayed = read_displayed_month()
+        months_back = (displayed.year - start_date.year) * 12 + displayed.month - start_date.month
+        if months_back < 0:
+            logging.error(f"Target {start_date:%b %Y} is after displayed {displayed:%b %Y}.")
+            return False
 
-        # Find the start date cell by its text (day of month)
-        day_xpath = f"//span[contains(@class, 'mat-calendar-body-cell-content') and normalize-space(text())='{start_day}']"
+        prev_btn_xpath = f"{start_cal}//button[contains(@class, 'mat-calendar-previous-button')]"
+        for _ in range(months_back):
+            before = displayed
+            wait.until(EC.element_to_be_clickable((By.XPATH, prev_btn_xpath))).click()
+            wait.until(lambda d: read_displayed_month() != before)
+            displayed = read_displayed_month()
+            logging.info(f"Navigated calendar to {displayed:%b %Y}.")
+
+        day_xpath = (
+            f"{start_cal}//td//span[contains(@class, 'mat-calendar-body-cell-content') "
+            f"and normalize-space(text())='{start_date.day}']"
+        )
         start_date_cell = wait.until(
             EC.element_to_be_clickable((By.XPATH, day_xpath))
         )
         start_date_cell.click()
-        logging.info(f"Selected start date: {start_day}")
+        logging.info(f"Selected start date: {start_date:%Y-%m-%d}")
 
         # Wait for and click the Apply button
         apply_xpath = "//button[.//span[normalize-space(text())='Apply']] | //span[normalize-space(text())='Apply']"
@@ -161,8 +160,27 @@ def select_looker_date_range(driver: webdriver.Edge, start_day: int, timeout: in
         return True
 
     except (TimeoutException, NoSuchElementException, WebDriverException) as e:
+        logging.error(f"Error selecting date: {e}"), ValueError) as e:
         logging.error(f"Error selecting date: {e}")
         return False
+
+def has_data_rows(driver: webdriver.Edge, timeout: int = 20) -> bool:
+    """
+    Waits for the first table data row in the Looker report.
+
+    Args:
+        driver (webdriver.Edge): Selenium WebDriver instance.
+        timeout (int): Maximum time to wait (in seconds).
+
+    Returns:
+        bool: True if a data row appeared, False if the selected range has no data.
+    """
+    try:
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".centerColsContainer .row.block-0.index-0"))
+        )
+        return True
+    except TimeoutException:
 
 def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> bool:
     """
@@ -598,8 +616,7 @@ def resolve_edge_profile_directory(
 
     return default_directory
 
-if __name__ == "__main__":
-    import argparse
+if _logging.info(f"Using start date from Google Sheet: {latest_dt:%Y-%m-%d
     import sys
     config = configparser.ConfigParser()
     config.read("config.ini")
@@ -608,7 +625,8 @@ if __name__ == "__main__":
     if not windows_username:
         logging.error("No Windows username found in config.ini under [windows] section.")
         sys.exit(1)
-    edge_user_data_dir = fr"C:\\Users\\{windows_username}\\AppData\\Local\\Microsoft\\Edge\\User Data"
+    #edge_user_data_dir = fr"C:\\Users\\{windows_username}\\AppData\\Local\\Microsoft\\Edge\\User Data"
+    edge_user_data_dir = fr"C:\\Tools\\edge_user_data\\User Data"
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
     # Get latest datetime from Google Sheet
@@ -623,13 +641,31 @@ if __name__ == "__main__":
     try:
         from selenium.webdriver.edge.options import Options
         from selenium.webdriver.edge.service import Service
+        import tempfile
         edge_options = Options()
+        # 1. FORCE THE BROWSER BINARY LOCATION (Bypasses automated validation)
+        edge_options.binary_location = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+        # 1. Force Edge to write its crash dumps and locks to local AppData Temp
+        edge_options.add_argument(f"--crash-dumps-dir={tempfile.gettempdir()}")
+        # 2. Force a specific network communication port to bypass Windows 11 Arm port-mapping lag
+        #edge_options.add_argument("--remote-debugging-port=9555")
         edge_options.add_argument(fr"--user-data-dir={edge_user_data_dir}")
-        profile_directory = resolve_edge_profile_directory(edge_user_data_dir, config)
-        edge_options.add_argument(f"--profile-directory={profile_directory}")
-        logging.info(f"Using Edge profile directory: {profile_directory}")
+        edge_options.add_argument("--no-sandbox")
+        edge_options.add_argument("--disable-dev-shm-usage")
+        edge_options.add_argument("--remote-allow-origins=*")
+        edge_options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        profile_directory = resolve_edge_prolatest_dt):
+            logging.info("Date selection completed successfully.")
+            if not has_data_rows(driver):
+                logging.info(f"No new data from {latest_dt:%Y-%m-%d} to today; skipping export.")
+            eling.info(f"Using Edge profile directory: {profile_directory}")
         # Redirect browser stderr to suppress GPU/Chromium errors
-        edge_service = Service(stderr=open(os.devnull, 'w'))
+        edge_service = Service(executable_path=r"C:\Tools\EdgeDriver\msedgedriver.exe")
+        #edge_service.path = r"C:\Tools\EdgeDriver\msedgedriver.exe"
+        edge_service = Service(
+            executable_path=r"C:\Tools\EdgeDriver\msedgedriver.exe", 
+            stderr=open(os.devnull, 'w')
+        )
         driver = webdriver.Edge(options=edge_options, service=edge_service)
         driver.get(looker_url)
         logging.info(f"Opened URL: {looker_url}")
