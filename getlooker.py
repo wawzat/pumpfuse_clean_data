@@ -163,6 +163,13 @@ def select_looker_date_range(driver: webdriver.Edge, start_date: datetime, timeo
         logging.error(f"Error selecting date: {e}")
         return False
 
+def _safe_url(driver: webdriver.Edge) -> str:
+    """Returns the current window's URL, or an empty string if the window is gone."""
+    try:
+        return driver.current_url
+    except WebDriverException:
+        return ""
+
 def has_data_rows(driver: webdriver.Edge, timeout: int = 30, settle: float = 3.0) -> bool:
     """
     Waits until the report table has rows and the row count stops changing.
@@ -344,18 +351,29 @@ def export_data_to_google_sheets(driver: webdriver.Edge, timeout: int = 20) -> b
             logging.error(f"Could not click Export button: {e}")
             return False
 
-        # Manual export opens the sheet after ~10s; log what the browser does meanwhile.
-        original_handles = set(driver.window_handles)
-        for _ in range(20):
-            time.sleep(1)
-            if set(driver.window_handles) - original_handles:
-                break
-        logging.info(f"Windows after export: {len(driver.window_handles)} (before: {len(original_handles)})")
+        # Manual export opens the sheet after ~10s; a popup seen here closed again within seconds.
+        main_handle = driver.current_window_handle
+        seen = {main_handle}
+        deadline = time.time() + 40
+        while time.time() < deadline:
+            for handle in driver.window_handles:
+                if handle in seen:
+                    continue
+                seen.add(handle)
+                try:
+                    driver.switch_to.window(handle)
+                    logging.info(f"New window: title='{driver.title}' url={driver.current_url}")
+                    driver.save_screenshot(f"export_window_{len(seen) - 1}.png")
+                except WebDriverException as exc:
+                    logging.info(f"New window closed before it could be inspected ({exc.msg})")
+            if "docs.google.com/spreadsheets" in _safe_url(driver):
+                return True
+            time.sleep(0.25)
         try:
-            driver.save_screenshot("after_export.png")
-            logging.info("Screenshot saved as after_export.png for debugging.")
-        except Exception:
+            driver.switch_to.window(main_handle)
+        except WebDriverException:
             pass
+        logging.info(f"Windows now open: {len(driver.window_handles)}; seen during export: {len(seen)}")
 
         return True
     except Exception as e:
